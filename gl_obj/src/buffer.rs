@@ -1,5 +1,5 @@
 use super::*;
-use core::any::TypeId;
+use core::any::{self, TypeId};
 use gl_safe::*;
 use std::mem::size_of;
 
@@ -9,6 +9,7 @@ pub struct Buffer {
 	len: usize,
 	stride: u32,
 	typeid: TypeId,
+	typename: &'static str,
 }
 
 impl Buffer {
@@ -20,6 +21,7 @@ impl Buffer {
 			len: 0,
 			stride: 0,
 			typeid: TypeId::of::<()>(),
+			typename: "",
 		}
 	}
 
@@ -32,10 +34,25 @@ impl Buffer {
 		glNamedBufferStorage(self.handle, data, flags);
 		Self {
 			typeid: TypeId::of::<T>(),
+			typename: std::any::type_name::<T>(),
 			stride: size_of::<T>() as u32,
 			len: data.len(),
 			..self
 		}
+	}
+
+	pub fn get_data<T>(&self, data: &mut [T])
+	where
+		T: Sized + Copy + 'static,
+	{
+		let have = TypeId::of::<T>();
+		if have != self.typeid {
+			panic!("Buffer::get_data: type mismatch: buffer type {:?} != argument type {:?}", self.typename, any::type_name::<T>())
+		}
+		if data.len() != self.len() {
+			panic!("Buffer::get_data: size mismatch: buffer len {} != argument len {}", self.len(), data.len())
+		}
+		glGetNamedBufferSubData(self.handle, 0 /*offset*/, data)
 	}
 
 	pub fn stride(&self) -> i32 {

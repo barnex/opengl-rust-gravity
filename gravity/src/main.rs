@@ -11,7 +11,6 @@ use gl_safe::*;
 use gl_win::*;
 use glutin::event::ElementState;
 use glutin::event::MouseButton;
-use std::cell::Cell;
 use std::sync::Arc;
 use std::time;
 use structopt::StructOpt;
@@ -28,7 +27,7 @@ struct Args {
 	height: u32,
 
 	/// Number of particles.
-	#[structopt(short, long, default_value = "1024")]
+	#[structopt(short, long, default_value = "10")]
 	num_particles: u32,
 
 	/// Verlet integration time step.
@@ -44,6 +43,19 @@ fn main() {
 	let (win, ev) = init_gl_window(size.0, size.1, "gravity");
 
 	let s = State::new(&args);
+
+	for p in State::init_positions(&args) {
+		println!("initial: {:?}", p)
+	}
+
+	let mut pos: Vec<vec3> = Vec::new();
+	for _ in 0..s.pos.len() {
+		pos.push(vec3(666.0, 666.0, 666.0));
+	}
+	s.pos.get_data(&mut pos);
+	for p in pos {
+		println!("{:?}", p)
+	}
 
 	// s.p_accel //
 	// 	.set1f("damping", args.damping);
@@ -142,7 +154,7 @@ impl State {
 	fn init_positions(args: &Args) -> Vec<vec3> {
 		let n_particles = args.num_particles as usize;
 		let mut pos = Vec::<vec3>::with_capacity(n_particles);
-		for i in 0..n_particles {
+		for _ in 0..n_particles {
 			pos.push(vec3(1.0, 2.0, 3.0));
 		}
 		pos

@@ -2,17 +2,6 @@ use super::check;
 use super::*;
 use std::mem;
 
-/// Generate a (single) buffer object name.
-/// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glGenBuffers.xhtml
-/// TODO: remove in favour of Create.
-//#[allow(non_snake_case)]
-//pub fn glGenBuffer() -> GLuint {
-//	let mut buffers = 0;
-//	unsafe { gl::GenBuffers(1, &mut buffers) }
-//	check::gl_error();
-//	buffers
-//}
-
 /// Create a buffer object.
 /// http://docs.gl/gl4/glCreateBuffers
 #[allow(non_snake_case)]
@@ -35,6 +24,19 @@ where
 	check::gl_error();
 }
 
+/// Returns a subset of a buffer object's data store.
+/// http://docs.gl/gl4/glGetBufferSubData
+#[allow(non_snake_case)]
+pub fn glGetNamedBufferSubData<T>(buffer: GLuint, offset: usize, data: &mut [T])
+where
+	T: Sized + Copy + 'static,
+{
+	// TODO: how to check size?
+	let bytes = data.len() * mem::size_of::<T>();
+	unsafe { gl::GetNamedBufferSubData(buffer, offset as isize, bytes as isize, mem::transmute(&data[0])) };
+	check::gl_error()
+}
+
 /*
 /// Creates and initializes a buffer object's data store.
 /// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBufferData.xhtml
@@ -47,18 +49,6 @@ where
 	let data = unsafe { mem::transmute(&data[0]) };
 	unsafe { gl::BufferData(target, size, data, usage) };
 	check::gl_error();
-}
-*/
-
-/*
-/// Create a buffer object.
-/// http://docs.gl/gl4/glCreateBuffers
-#[allow(non_snake_case)]
-pub fn glCreateBuffer() -> GLuint {
-	let mut result = 0;
-	unsafe { gl::CreateBuffers(1, &mut result) };
-	check::gl_error();
-	result
 }
 */
 
