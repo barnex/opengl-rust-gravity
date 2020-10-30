@@ -267,7 +267,7 @@ impl State {
 			vec2(1.0, 1.0),
 			vec2(1.0, -1.0),
 		];
-		let v_pos_buf = Buffer::create().storage(&v_pos, 0);
+		let v_pos_buf = Buffer::new(&v_pos, 0);
 
 		let v_texc = [
 			//
@@ -276,7 +276,7 @@ impl State {
 			vec2(1.0, 0.0),
 			vec2(1.0, 1.0),
 		];
-		let v_texc_buf = Buffer::create().storage(&v_texc, 0);
+		let v_texc_buf = Buffer::new(&v_texc, 0);
 
 		let v_pos_attr = prog.attrib_location("vertex_pos").unwrap();
 		let v_texc_attr = prog.attrib_location("vertex_tex_coord").unwrap();

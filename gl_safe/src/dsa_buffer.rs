@@ -37,6 +37,14 @@ where
 	check::gl_error()
 }
 
+/// Delete a buffer object.
+/// http://docs.gl/gl4/glDeleteBuffers
+#[allow(non_snake_case)]
+pub fn glDeleteBuffer(buffer: GLuint) {
+	unsafe { gl::DeleteBuffers(1, &buffer) };
+	check::gl_error()
+}
+
 /*
 /// Creates and initializes a buffer object's data store.
 /// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBufferData.xhtml

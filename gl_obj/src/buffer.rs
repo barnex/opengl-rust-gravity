@@ -1,16 +1,11 @@
 use super::*;
-use core::any::{self, TypeId};
 use gl_safe::*;
 use std::marker::PhantomData;
-use std::mem::size_of;
 
 pub struct Buffer<T: Sized + Copy + 'static> {
 	handle: GLuint,
 	len: usize,
 	_type: PhantomData<T>,
-	//stride: u32,
-	//typeid: TypeId,
-	//typename: &'static str,
 }
 
 impl<T> Buffer<T>
@@ -18,7 +13,9 @@ where
 	T: Sized + Copy + 'static,
 {
 	pub fn new(data: &[T], flags: GLbitfield) -> Self {
-		Self::create().storage(data, flags)
+		let mut s = Self::create();
+		s.storage(data, flags);
+		s
 	}
 
 	/// Create a buffer object.
@@ -33,11 +30,12 @@ where
 
 	/// Creates and initializes a buffer object's immutable data store.
 	/// http://docs.gl/gl4/glBufferStorage
-	pub fn storage(self, data: &[T], flags: GLbitfield) -> Self {
+	pub fn storage(&mut self, data: &[T], flags: GLbitfield) {
 		glNamedBufferStorage(self.handle, data, flags);
-		Self { len: data.len(), ..self }
+		self.len = data.len();
 	}
 
+	/// Returns the number of elements in the buffer.
 	pub fn len(&self) -> usize {
 		self.len
 	}
@@ -58,14 +56,16 @@ where
 		glGetNamedBufferSubData(self.handle, 0 /*offset*/, &mut data);
 		data
 	}
+}
 
-	//pub fn stride(&self) -> i32 {
-	//	self.stride as i32
-	//}
-
-	//pub fn bytes(&self) -> usize {
-	//	self.len * (self.stride as usize)
-	//}
+impl<T> Drop for Buffer<T>
+where
+	T: Sized + Copy + 'static,
+{
+	fn drop(&mut self) {
+		println!("dropping buffer {}", self.handle);
+		glDeleteBuffer(self.handle)
+	}
 }
 
 impl<T> Into<GLuint> for Buffer<T>
