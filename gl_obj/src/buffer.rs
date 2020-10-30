@@ -41,7 +41,29 @@ impl Buffer {
 		}
 	}
 
-	pub fn get_data<T>(&self, data: &mut [T])
+	pub fn copy_data<T>(&self, data: &mut [T])
+	where
+		T: Sized + Copy + 'static,
+	{
+		self.check_type::<T>();
+		if data.len() != self.len() {
+			panic!("Buffer::get_data: size mismatch: buffer len {} != argument len {}", self.len(), data.len())
+		}
+		glGetNamedBufferSubData(self.handle, 0 /*offset*/, data)
+	}
+
+	pub fn data<T>(&self) -> Vec<T>
+	where
+		T: Sized + Copy + 'static,
+	{
+		self.check_type::<T>();
+		let mut data = Vec::<T>::with_capacity(self.len());
+		unsafe { data.set_len(self.len()) };
+		glGetNamedBufferSubData(self.handle, 0 /*offset*/, &mut data);
+		data
+	}
+
+	fn check_type<T>(&self)
 	where
 		T: Sized + Copy + 'static,
 	{
@@ -49,10 +71,6 @@ impl Buffer {
 		if have != self.typeid {
 			panic!("Buffer::get_data: type mismatch: buffer type {:?} != argument type {:?}", self.typename, any::type_name::<T>())
 		}
-		if data.len() != self.len() {
-			panic!("Buffer::get_data: size mismatch: buffer len {} != argument len {}", self.len(), data.len())
-		}
-		glGetNamedBufferSubData(self.handle, 0 /*offset*/, data)
 	}
 
 	pub fn stride(&self) -> i32 {

@@ -48,11 +48,7 @@ fn main() {
 		println!("initial: {:?}", p)
 	}
 
-	let mut pos: Vec<vec3> = Vec::new();
-	for _ in 0..s.pos.len() {
-		pos.push(vec3(666.0, 666.0, 666.0));
-	}
-	s.pos.get_data(&mut pos);
+	let pos = s.pos.data::<vec3>();
 	for p in pos {
 		println!("{:?}", p)
 	}
