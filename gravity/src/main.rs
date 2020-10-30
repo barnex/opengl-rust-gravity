@@ -44,12 +44,7 @@ fn main() {
 
 	let s = State::new(&args);
 
-	for p in State::init_positions(&args) {
-		println!("initial: {:?}", p)
-	}
-
-	let pos = s.pos.data::<vec3>();
-	for p in pos {
+	for p in s.pos.get_data() {
 		println!("{:?}", p)
 	}
 
@@ -91,7 +86,9 @@ fn main() {
 
 struct State {
 	background: vec3,
-	pos: Buffer,
+	pos: Buffer<vec3>,
+	vel: Buffer<vec3>,
+	acc: Buffer<vec3>,
 	//p_accel: Program,
 	//p_verlet: Program,
 	//p_mouse: Program,
@@ -99,8 +96,6 @@ struct State {
 	//p_render: Program,
 	//p_photon: Program,
 	//p_decay: Program,
-	//vel: Texture,
-	//acc: Texture,
 	//normal: Texture,
 	//photon: Texture,
 	//sky: Texture,
@@ -120,11 +115,13 @@ impl State {
 		//	Shader::new_frag(include_str!("water.frag")),
 		//]);
 
-		let pos = Self::init_positions(&args);
+		let FLAGS = 0;
 
 		Self {
 			background: vec3(0.5, 0.5, 0.5),
-			pos: Buffer::create().storage(&pos, 0)
+			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
+			vel: Buffer::new(&Self::init_pos(&args), FLAGS),
+			acc: Buffer::new(&Self::init_pos(&args), FLAGS),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			//	p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
 			//	p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
@@ -147,7 +144,7 @@ impl State {
 		}
 	}
 
-	fn init_positions(args: &Args) -> Vec<vec3> {
+	fn init_pos(args: &Args) -> Vec<vec3> {
 		let n_particles = args.num_particles as usize;
 		let mut pos = Vec::<vec3>::with_capacity(n_particles);
 		for _ in 0..n_particles {

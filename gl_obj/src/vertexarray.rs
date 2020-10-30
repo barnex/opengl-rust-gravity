@@ -49,7 +49,10 @@ impl VertexArray {
 
 	/// Bind a buffer to a vertex buffer bind point.
 	/// https://khronos.org/registry/OpenGL-Refpages/gl4/html/glBindVertexBuffer.xhtml
-	pub fn vertex_buffer(self, bindingindex: GLuint, buffer: Buffer, offset: GLintptr, stride: GLsizei) -> Self {
+	pub fn vertex_buffer<T>(self, bindingindex: GLuint, buffer: Buffer<T>, offset: GLintptr, stride: GLsizei) -> Self
+	where
+		T: Sized + Copy + 'static,
+	{
 		glVertexArrayVertexBuffer(self.0, bindingindex, buffer.into(), offset, stride);
 		self
 	}
