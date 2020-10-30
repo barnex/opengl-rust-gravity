@@ -1,0 +1,15 @@
+[package]
+name = "gravity"
+version = "0.1.0"
+authors = ["Arne Vansteenkiste <barnex@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+gl_obj = { path = "../gl_obj" }
+gl_win = { path = "../gl_win" }
+gl_safe = { path = "../gl_safe" }
+gl_img = { path = "../gl_img" }
+glutin = "0.24"
+image = "0.23"
+structopt = "0.3"
+gl = "0.14.0"
