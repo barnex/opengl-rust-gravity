@@ -9,7 +9,11 @@
 layout (local_size_x=1) in; // TODO !!!!!!!!!!!!!!!
 
 layout(std430, binding=0) buffer pos{
-	vec3 el[];
+	vec4 p[];
+};
+
+layout(std430, binding=1) buffer vel{
+	vec4 v[];
 };
 
 
@@ -18,7 +22,8 @@ layout(std430, binding=0) buffer pos{
 void main(){
 	uint i = gl_GlobalInvocationID.x;
 
-	el[i] = vec3(10.0, 20.0, 30.0);
+	//pos[i] = vec4(10.0 + i, 20.0, 30.0, 40.0);
+	v[i] = p[i];
 
 	//float p = imageLoad(pos, xy).r;
 	//float v = imageLoad(vel, xy).r;

@@ -45,15 +45,29 @@ fn main() {
 	let mut s = State::new(&args);
 
 	let prog = s.p_verlet.into();
-	let block_index = glGetProgramResourceIndex(prog, gl::SHADER_STORAGE_BLOCK, "pos");
-	println!("p_verlet pos index: {}", block_index);
-	let binding_point_index = 0;
-	glShaderStorageBlockBinding(prog, block_index, binding_point_index);
-	glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding_point_index, s.pos.handle());
+
+	{
+		let block_index = glGetProgramResourceIndex(prog, gl::SHADER_STORAGE_BLOCK, "pos");
+		println!("p_verlet pos index: {}", block_index);
+		let binding_point_index = block_index;
+		glShaderStorageBlockBinding(prog, block_index, binding_point_index);
+		glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding_point_index, s.pos.handle());
+	}
+	{
+		let block_index = glGetProgramResourceIndex(prog, gl::SHADER_STORAGE_BLOCK, "vel");
+		println!("p_verlet vel index: {}", block_index);
+		let binding_point_index = block_index;
+		glShaderStorageBlockBinding(prog, block_index, binding_point_index);
+		glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding_point_index, s.vel.handle());
+	}
+
 	s.exec(s.p_verlet);
 
 	for p in s.pos.get_data() {
-		println!("{:?}", p)
+		println!("pos {:?}", p)
+	}
+	for p in s.pos.get_data() {
+		println!("vel {:?}", p)
 	}
 
 	// s.p_accel //
@@ -94,9 +108,9 @@ fn main() {
 
 struct State {
 	background: vec3,
-	pos: Buffer<vec3>,
-	vel: Buffer<vec3>,
-	acc: Buffer<vec3>,
+	pos: Buffer<vec4>,
+	vel: Buffer<vec4>,
+	acc: Buffer<vec4>,
 	//p_accel: Program,
 	p_verlet: Program,
 	//p_mouse: Program,
@@ -152,11 +166,11 @@ impl State {
 		}
 	}
 
-	fn init_pos(args: &Args) -> Vec<vec3> {
+	fn init_pos(args: &Args) -> Vec<vec4> {
 		let n_particles = args.num_particles as usize;
-		let mut pos = Vec::<vec3>::with_capacity(n_particles);
+		let mut pos = Vec::<vec4>::with_capacity(n_particles);
 		for _ in 0..n_particles {
-			pos.push(vec3(1.0, 2.0, 3.0));
+			pos.push(vec4(1.0, 2.0, 3.0, 4.0));
 		}
 		pos
 	}
