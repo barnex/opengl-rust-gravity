@@ -45,6 +45,14 @@ pub fn glDeleteBuffer(buffer: GLuint) {
 	check::gl_error()
 }
 
+/// Bind a buffer object to an indexed buffer target.
+/// http://docs.gl/gl4/glBindBufferBase
+#[allow(non_snake_case)]
+pub fn glBindBufferBase(target: GLenum, index: GLuint, buffer: GLuint) {
+	unsafe { gl::BindBufferBase(target, index, buffer) };
+	check::gl_error()
+}
+
 /*
 /// Creates and initializes a buffer object's data store.
 /// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glBufferData.xhtml

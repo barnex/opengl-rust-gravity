@@ -27,7 +27,7 @@ struct Args {
 	height: u32,
 
 	/// Number of particles.
-	#[structopt(short, long, default_value = "10")]
+	#[structopt(short, long, default_value = "16")]
 	num_particles: u32,
 
 	/// Verlet integration time step.
@@ -42,7 +42,15 @@ fn main() {
 	let size = uvec2(args.width, args.height);
 	let (win, ev) = init_gl_window(size.0, size.1, "gravity");
 
-	let s = State::new(&args);
+	let mut s = State::new(&args);
+
+	let prog = s.p_verlet.into();
+	let block_index = glGetProgramResourceIndex(prog, gl::SHADER_STORAGE_BLOCK, "pos");
+	println!("p_verlet pos index: {}", block_index);
+	let binding_point_index = 0;
+	glShaderStorageBlockBinding(prog, block_index, binding_point_index);
+	glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding_point_index, s.pos.handle());
+	s.exec(s.p_verlet);
 
 	for p in s.pos.get_data() {
 		println!("{:?}", p)
@@ -90,7 +98,7 @@ struct State {
 	vel: Buffer<vec3>,
 	acc: Buffer<vec3>,
 	//p_accel: Program,
-	//p_verlet: Program,
+	p_verlet: Program,
 	//p_mouse: Program,
 	//p_normal: Program,
 	//p_render: Program,
@@ -122,8 +130,8 @@ impl State {
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
 			vel: Buffer::new(&Self::init_pos(&args), FLAGS),
 			acc: Buffer::new(&Self::init_pos(&args), FLAGS),
+			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
-			//	p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
 			//	p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
 			//	p_normal: Self::compute_prog(include_str!("normal.glsl")),
 			//	p_decay: Self::compute_prog(include_str!("udecay.glsl")),
@@ -153,7 +161,9 @@ impl State {
 		pos
 	}
 
-	fn steps(&mut self, n: u32) {
+	fn step(&mut self) {
+		self.update_pos_vel();
+
 		//for _ in 0..n {
 		//	self.update_acc();
 		//	self.update_pos_vel();
@@ -173,10 +183,11 @@ impl State {
 	}
 
 	fn update_pos_vel(&self) {
+		//self.p_verlet.uniform1i(0, self.pos.handle() as i32);
 		//self.pos.bind_image_unit(0, READ_WRITE);
 		//self.vel.bind_image_unit(1, READ_WRITE);
 		//self.acc.bind_image_unit(2, READ_ONLY);
-		//self.exec(self.p_verlet)
+		self.exec(self.p_verlet)
 	}
 
 	fn apply_mouse(&self) {
@@ -208,10 +219,9 @@ impl State {
 		// glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
 	}
 
-	//fn exec(&self, p: Program) {
-	//	let xy = self.pos.size();
-	//	p.compute_and_sync(uvec3(xy.0, xy.1, 1))
-	//}
+	fn exec(&self, p: Program) {
+		p.compute_and_sync(uvec3(self.pos.len() as u32, 1, 1))
+	}
 
 	fn on_cursor_moved(&self, position: (f64, f64)) {
 		//let (w, h) = (self.pos.size().0, self.pos.size().1);

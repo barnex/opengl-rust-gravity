@@ -40,6 +40,10 @@ where
 		self.len
 	}
 
+	pub fn handle(&self) -> GLuint {
+		self.handle
+	}
+
 	/// Copy the buffer's contents into `data`,
 	/// which must match in size.
 	pub fn copy_data(&self, data: &mut [T]) {

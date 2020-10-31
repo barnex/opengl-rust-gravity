@@ -65,6 +65,32 @@ pub fn glGetUniformLocation(program: GLuint, name: &str) -> i32 {
 	result
 }
 
+/// Retrieve the index of a named uniform block.
+/// http://docs.gl/gl4/glGetUniformBlockIndex
+#[allow(non_snake_case)]
+pub fn glGetUniformBlockIndex(program: GLuint, uniformBlockName: &str) -> u32 {
+	let result = unsafe { gl::GetUniformBlockIndex(program, CString::new(uniformBlockName).unwrap().as_ptr()) };
+	check::gl_error();
+	result
+}
+
+/// change an active shader storage block binding.
+/// http://docs.gl/gl4/glShaderStorageBlockBinding
+#[allow(non_snake_case)]
+pub fn glShaderStorageBlockBinding(program: GLuint, storageBlockIndex: GLuint, storageBlockBinding: GLuint) {
+	unsafe { gl::ShaderStorageBlockBinding(program, storageBlockIndex, storageBlockBinding) };
+	check::gl_error()
+}
+
+/// Query the index of a named resource within a program.
+/// http://docs.gl/gl4/glGetProgramResourceIndex
+#[allow(non_snake_case)]
+pub fn glGetProgramResourceIndex(program: GLuint, programInterface: GLenum, name: &str) -> u32 {
+	let result = unsafe { gl::GetProgramResourceIndex(program, programInterface, CString::new(name).unwrap().as_ptr()) };
+	check::gl_error();
+	result
+}
+
 /// Specify the value of a uniform variable for a specified program object.
 /// http://docs.gl/gl4/glProgramUniform
 #[allow(non_snake_case)]
