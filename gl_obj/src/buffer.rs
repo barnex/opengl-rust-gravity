@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 pub struct Buffer<T: Sized + Copy + 'static> {
 	handle: GLuint,
-	len: usize,
+	len: u32,
 	_type: PhantomData<T>,
 }
 
@@ -32,11 +32,11 @@ where
 	/// http://docs.gl/gl4/glBufferStorage
 	pub fn storage(&mut self, data: &[T], flags: GLbitfield) {
 		glNamedBufferStorage(self.handle, data, flags);
-		self.len = data.len();
+		self.len = data.len() as u32;
 	}
 
 	/// Returns the number of elements in the buffer.
-	pub fn len(&self) -> usize {
+	pub fn len(&self) -> u32 {
 		self.len
 	}
 
@@ -47,7 +47,7 @@ where
 	/// Copy the buffer's contents into `data`,
 	/// which must match in size.
 	pub fn copy_data(&self, data: &mut [T]) {
-		if data.len() != self.len() {
+		if data.len() != self.len() as usize {
 			panic!("Buffer::get_data: size mismatch: buffer len {} != argument len {}", self.len(), data.len())
 		}
 		glGetNamedBufferSubData(self.handle, 0 /*offset*/, data)
@@ -55,8 +55,8 @@ where
 
 	/// Returns a copy the buffer's contents.
 	pub fn get_data(&self) -> Vec<T> {
-		let mut data = Vec::<T>::with_capacity(self.len());
-		unsafe { data.set_len(self.len()) };
+		let mut data = Vec::<T>::with_capacity(self.len() as usize);
+		unsafe { data.set_len(self.len() as usize) };
 		glGetNamedBufferSubData(self.handle, 0 /*offset*/, &mut data);
 		data
 	}

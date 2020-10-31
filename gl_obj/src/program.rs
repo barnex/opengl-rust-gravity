@@ -73,6 +73,16 @@ impl Program {
 		}
 	}
 
+	/// Query the index of a named resource within a program.
+	/// http://docs.gl/gl4/glGetProgramResourceIndex
+	pub fn resource_index(&self, interface: GLenum, name: &str) -> u32 {
+		glGetProgramResourceIndex(self.0, interface, name)
+	}
+
+	pub fn shader_storage_block_index(&self, name: &str) -> u32 {
+		self.resource_index(gl::SHADER_STORAGE_BLOCK, name)
+	}
+
 	// TODO: ivec3
 	pub fn compute_work_group_size(self) -> (u32, u32, u32) {
 		let s = self.get_iv(gl::COMPUTE_WORK_GROUP_SIZE, 3);
@@ -174,6 +184,14 @@ impl Program {
 	/// https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glUseProgram.xhtml
 	pub fn use_program(self) {
 		glUseProgram(self.0)
+	}
+
+	pub fn bind_shader_storage_buffer<T>(&self, buffer: &Buffer<T>, index: u32, binding: u32)
+	where
+		T: Sized + Copy + 'static,
+	{
+		glShaderStorageBlockBinding(self.0, index, binding);
+		glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding, buffer.handle());
 	}
 }
 

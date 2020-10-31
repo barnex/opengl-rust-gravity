@@ -87,6 +87,9 @@ pub fn glShaderStorageBlockBinding(program: GLuint, storageBlockIndex: GLuint, s
 #[allow(non_snake_case)]
 pub fn glGetProgramResourceIndex(program: GLuint, programInterface: GLenum, name: &str) -> u32 {
 	let result = unsafe { gl::GetProgramResourceIndex(program, programInterface, CString::new(name).unwrap().as_ptr()) };
+	if (result as i32) < 0 {
+		panic!("glGetProgramResourceIndex {}: not found", name)
+	}
 	check::gl_error();
 	result
 }

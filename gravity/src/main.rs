@@ -42,31 +42,14 @@ fn main() {
 	let size = uvec2(args.width, args.height);
 	let (win, ev) = init_gl_window(size.0, size.1, "gravity");
 
-	let mut s = State::new(&args);
+	let s = State::new(&args);
 
-	let prog = s.p_verlet.into();
-
-	{
-		let block_index = glGetProgramResourceIndex(prog, gl::SHADER_STORAGE_BLOCK, "pos");
-		println!("p_verlet pos index: {}", block_index);
-		let binding_point_index = block_index;
-		glShaderStorageBlockBinding(prog, block_index, binding_point_index);
-		glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding_point_index, s.pos.handle());
-	}
-	{
-		let block_index = glGetProgramResourceIndex(prog, gl::SHADER_STORAGE_BLOCK, "vel");
-		println!("p_verlet vel index: {}", block_index);
-		let binding_point_index = block_index;
-		glShaderStorageBlockBinding(prog, block_index, binding_point_index);
-		glBindBufferBase(gl::SHADER_STORAGE_BUFFER, binding_point_index, s.vel.handle());
-	}
-
-	s.exec(s.p_verlet);
+	s.p_verlet.exec(&s.pos, &s.vel, &s.acc);
 
 	for p in s.pos.get_data() {
 		println!("pos {:?}", p)
 	}
-	for p in s.pos.get_data() {
+	for p in s.vel.get_data() {
 		println!("vel {:?}", p)
 	}
 
@@ -106,13 +89,39 @@ fn main() {
 	run_event_loop(ev, win, s);
 }
 
+struct PVerlet {
+	prog: Program,
+	pos_index: u32,
+	vel_index: u32,
+	acc_index: u32,
+}
+
+impl PVerlet {
+	fn new() -> Self {
+		let prog = Program::new(&[Shader::new_comp(include_str!("verlet.glsl"))]);
+		Self {
+			prog,
+			pos_index: prog.shader_storage_block_index("pos"),
+			vel_index: prog.shader_storage_block_index("vel"),
+			acc_index: prog.shader_storage_block_index("acc"),
+		}
+	}
+
+	fn exec(&self, pos: &Buffer<vec4>, vel: &Buffer<vec4>, acc: &Buffer<vec4>) {
+		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		self.prog.bind_shader_storage_buffer(vel, self.vel_index, self.vel_index);
+		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
+		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
+	}
+}
+
 struct State {
 	background: vec3,
 	pos: Buffer<vec4>,
 	vel: Buffer<vec4>,
 	acc: Buffer<vec4>,
 	//p_accel: Program,
-	p_verlet: Program,
+	p_verlet: PVerlet,
 	//p_mouse: Program,
 	//p_normal: Program,
 	//p_render: Program,
@@ -144,7 +153,7 @@ impl State {
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
 			vel: Buffer::new(&Self::init_pos(&args), FLAGS),
 			acc: Buffer::new(&Self::init_pos(&args), FLAGS),
-			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
+			p_verlet: PVerlet::new(),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			//	p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
 			//	p_normal: Self::compute_prog(include_str!("normal.glsl")),
@@ -201,7 +210,7 @@ impl State {
 		//self.pos.bind_image_unit(0, READ_WRITE);
 		//self.vel.bind_image_unit(1, READ_WRITE);
 		//self.acc.bind_image_unit(2, READ_ONLY);
-		self.exec(self.p_verlet)
+		self.p_verlet.exec(&self.pos, &self.vel, &self.acc)
 	}
 
 	fn apply_mouse(&self) {
@@ -277,10 +286,6 @@ impl State {
 
 	fn on_cursor_left(&self) {
 		//self.p_mouse.set1f("mouse_pow", 0.0);
-	}
-
-	fn compute_prog(src: &str) -> Program {
-		Program::new(&[Shader::new_comp(src)])
 	}
 
 	fn vao(prog: Program) -> VertexArray {
