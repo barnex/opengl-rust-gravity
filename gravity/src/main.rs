@@ -45,38 +45,17 @@ fn main() {
 	let s = State::new(&args);
 
 	s.p_verlet.exec(&s.pos, &s.vel, &s.acc);
+	s.p_gravity.exec(&s.pos, &s.acc);
 
 	for p in s.pos.get_data() {
 		println!("pos {:?}", p)
 	}
-	for p in s.vel.get_data() {
-		println!("vel {:?}", p)
+	for v in s.vel.get_data() {
+		println!("vel {:?}", v)
 	}
-
-	// s.p_accel //
-	// 	.set1f("damping", args.damping);
-
-	// s.p_verlet //
-	// 	.set1f("dt", args.dt);
-
-	// s.p_mouse //
-	// 	.set1f("mouse_rad", args.mouse_radius);
-
-	// s.p_photon //
-	// 	.set1f("depth", args.depth)
-	// 	.set1f("eta", args.refraction)
-	// 	.set1f("dispersion", args.dispersion / 5.0); // div by 5 because we apply this 5 times (between red,yellow,green,cyan,blue,purple)
-	// 										 //.set("light_dir", vec3(0.03, 0.01, -1.0).normalized())
-
-	// s.p_render //
-	// 	.set1f("water_refraction_depth", args.depth)
-	// 	.set1f("water_refraction", args.refraction)
-	// 	.set1f("reflection_height", args.sky_height)
-	// 	.set1f("reflection_strength", args.reflection)
-	// 	//.set1f("light_dir", light_dir)
-	// 	.set1f("sun_strength", args.sun)
-	// 	.set1f("photon_strength", args.caustics)
-	// 	.set1f("ambient", args.ambient);
+	for a in s.acc.get_data() {
+		println!("acc {:?}", a)
+	}
 
 	// continuously pump redraws
 	let proxy = ev.create_proxy();
@@ -115,12 +94,35 @@ impl PVerlet {
 	}
 }
 
+struct PGravity {
+	prog: Program,
+	pos_index: u32,
+	acc_index: u32,
+}
+
+impl PGravity {
+	fn new() -> Self {
+		let prog = Program::new(&[Shader::new_comp(include_str!("gravity.glsl"))]);
+		Self {
+			prog,
+			pos_index: prog.shader_storage_block_index("pos"),
+			acc_index: prog.shader_storage_block_index("acc"),
+		}
+	}
+
+	fn exec(&self, pos: &Buffer<vec4>, acc: &Buffer<vec4>) {
+		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
+		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
+	}
+}
+
 struct State {
 	background: vec3,
 	pos: Buffer<vec4>,
 	vel: Buffer<vec4>,
 	acc: Buffer<vec4>,
-	//p_accel: Program,
+	p_gravity: PGravity,
 	p_verlet: PVerlet,
 	//p_mouse: Program,
 	//p_normal: Program,
@@ -151,9 +153,10 @@ impl State {
 		Self {
 			background: vec3(0.5, 0.5, 0.5),
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
-			vel: Buffer::new(&Self::init_pos(&args), FLAGS),
-			acc: Buffer::new(&Self::init_pos(&args), FLAGS),
+			vel: Buffer::new(&Self::zeros(&args), FLAGS),
+			acc: Buffer::new(&Self::zeros(&args), FLAGS),
 			p_verlet: PVerlet::new(),
+			p_gravity: PGravity::new(),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			//	p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
 			//	p_normal: Self::compute_prog(include_str!("normal.glsl")),
@@ -180,6 +183,15 @@ impl State {
 		let mut pos = Vec::<vec4>::with_capacity(n_particles);
 		for _ in 0..n_particles {
 			pos.push(vec4(1.0, 2.0, 3.0, 4.0));
+		}
+		pos
+	}
+
+	fn zeros(args: &Args) -> Vec<vec4> {
+		let n_particles = args.num_particles as usize;
+		let mut pos = Vec::<vec4>::with_capacity(n_particles);
+		for _ in 0..n_particles {
+			pos.push(vec4(0.0, 0.0, 0.0, 0.0));
 		}
 		pos
 	}
