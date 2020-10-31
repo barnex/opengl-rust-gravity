@@ -86,7 +86,7 @@ impl PVerlet {
 		}
 	}
 
-	fn exec(&self, pos: &Buffer<vec4>, vel: &Buffer<vec4>, acc: &Buffer<vec4>) {
+	fn exec(&self, pos: &Buffer<vec2>, vel: &Buffer<vec2>, acc: &Buffer<vec2>) {
 		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
 		self.prog.bind_shader_storage_buffer(vel, self.vel_index, self.vel_index);
 		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
@@ -110,7 +110,7 @@ impl PGravity {
 		}
 	}
 
-	fn exec(&self, pos: &Buffer<vec4>, acc: &Buffer<vec4>) {
+	fn exec(&self, pos: &Buffer<vec2>, acc: &Buffer<vec2>) {
 		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
 		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
 		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
@@ -119,9 +119,9 @@ impl PGravity {
 
 struct State {
 	background: vec3,
-	pos: Buffer<vec4>,
-	vel: Buffer<vec4>,
-	acc: Buffer<vec4>,
+	pos: Buffer<vec2>,
+	vel: Buffer<vec2>,
+	acc: Buffer<vec2>,
 	p_gravity: PGravity,
 	p_verlet: PVerlet,
 	//p_mouse: Program,
@@ -153,8 +153,8 @@ impl State {
 		Self {
 			background: vec3(0.5, 0.5, 0.5),
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
-			vel: Buffer::new(&Self::zeros(&args), FLAGS),
-			acc: Buffer::new(&Self::zeros(&args), FLAGS),
+			vel: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
+			acc: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
 			p_verlet: PVerlet::new(),
 			p_gravity: PGravity::new(),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
@@ -178,20 +178,11 @@ impl State {
 		}
 	}
 
-	fn init_pos(args: &Args) -> Vec<vec4> {
+	fn init_pos(args: &Args) -> Vec<vec2> {
 		let n_particles = args.num_particles as usize;
-		let mut pos = Vec::<vec4>::with_capacity(n_particles);
+		let mut pos = Vec::<vec2>::with_capacity(n_particles);
 		for _ in 0..n_particles {
-			pos.push(vec4(1.0, 2.0, 3.0, 4.0));
-		}
-		pos
-	}
-
-	fn zeros(args: &Args) -> Vec<vec4> {
-		let n_particles = args.num_particles as usize;
-		let mut pos = Vec::<vec4>::with_capacity(n_particles);
-		for _ in 0..n_particles {
-			pos.push(vec4(0.0, 0.0, 0.0, 0.0));
+			pos.push(vec2(1.0, 2.0));
 		}
 		pos
 	}
@@ -349,4 +340,13 @@ fn run_event_loop(ev: EventLoop, win: Arc<Window>, mut s: State) {
 			_ => (),
 		}
 	});
+}
+
+fn zeros<T: Copy + Default>(n: usize) -> Vec<T> {
+	let mut v = Vec::with_capacity(n);
+	let x = T::default();
+	for _ in 0..n {
+		v.push(x);
+	}
+	v
 }
