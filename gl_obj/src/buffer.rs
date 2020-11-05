@@ -67,8 +67,8 @@ where
 	T: Sized + Copy + 'static,
 {
 	fn drop(&mut self) {
-		println!("dropping buffer {}", self.handle);
-		glDeleteBuffer(self.handle)
+		println!("TODO: should we be dropping buffer {}?", self.handle);
+		//glDeleteBuffer(self.handle)
 	}
 }
 

@@ -68,6 +68,75 @@ fn main() {
 	run_event_loop(ev, win, s);
 }
 
+struct PRender {
+	prog: Program,
+	pos_index: u32,
+}
+
+impl PRender {
+	fn new() -> Self {
+		let prog = Program::new(&[Shader::new_comp(include_str!("render.glsl"))]);
+		let pos_index = prog.shader_storage_block_index("pos");
+		Self { prog, pos_index }
+	}
+
+	fn exec(&self, pos: &Buffer<vec2>, tex: &Texture) {
+		tex.bind_image_unit(0 /* tex location*/, READ_ONLY);
+		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1))
+	}
+}
+
+struct PDraw {
+	prog: Program,
+	vao: VertexArray,
+}
+
+impl PDraw {
+	fn new() -> Self {
+		let prog = Program::new(&[
+			Shader::new_vert(include_str!("texture.vert")), //
+			Shader::new_frag(include_str!("height.frag")),
+		]);
+		let v_pos = [
+			//
+			vec2(-1.0, 1.0),
+			vec2(-1.0, -1.0),
+			vec2(1.0, 1.0),
+			vec2(1.0, -1.0),
+		];
+		let v_pos_buf = Buffer::new(&v_pos, 0);
+
+		let v_texc = [
+			//
+			vec2(0.0, 0.0),
+			vec2(0.0, 1.0),
+			vec2(1.0, 0.0),
+			vec2(1.0, 1.0),
+		];
+		let v_texc_buf = Buffer::new(&v_texc, 0);
+
+		let v_pos_attr = prog.attrib_location("vertex_pos").unwrap();
+		let v_texc_attr = prog.attrib_location("vertex_tex_coord").unwrap();
+		let vao = VertexArray::create() //
+			.enable_attrib(v_pos_attr)
+			.attrib_format(v_pos_attr, 2, gl::FLOAT, false, 0)
+			.vertex_buffer(v_pos_attr, v_pos_buf, 0, sizeof(v_pos[0]));
+		//.enable_attrib(v_texc_attr)
+		//.attrib_format(v_texc_attr, 2, gl::FLOAT, false, 0)
+		//.vertex_buffer(v_texc_attr, v_texc_buf, 0, sizeof(v_texc[0]));
+
+		Self { prog, vao }
+	}
+
+	fn exec(&self, tex: &Texture) {
+		self.prog.use_program();
+		self.vao.bind();
+		tex.bind_texture_unit(0);
+		glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
+	}
+}
+
 struct PVerlet {
 	prog: Program,
 	pos_index: u32,
@@ -124,16 +193,15 @@ struct State {
 	acc: Buffer<vec2>,
 	p_gravity: PGravity,
 	p_verlet: PVerlet,
+	p_render: PRender,
+	p_draw: PDraw,
+	rendered: Texture,
 	//p_mouse: Program,
 	//p_normal: Program,
-	//p_render: Program,
-	//p_photon: Program,
 	//p_decay: Program,
 	//normal: Texture,
-	//photon: Texture,
 	//sky: Texture,
 	//floor: Texture,
-	//vao: VertexArray,
 	//time_steps_per_draw: u32,
 	//rand_seed: i32,
 	//start: time::Instant,
@@ -142,35 +210,29 @@ struct State {
 
 impl State {
 	fn new(args: &Args) -> Self {
-		//let p_render = Program::new(&[
-		//	//
-		//	Shader::new_vert(include_str!("texture.vert")),
-		//	Shader::new_frag(include_str!("water.frag")),
-		//]);
-
 		let FLAGS = 0;
+		let size = uvec2(args.width, args.height);
 
 		Self {
 			background: vec3(0.5, 0.5, 0.5),
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
 			vel: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
 			acc: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
+			rendered: Texture::new2d(gl::RGBA8UI, size).filter_nearest(),
 			p_verlet: PVerlet::new(),
 			p_gravity: PGravity::new(),
+			p_render: PRender::new(),
+			p_draw: PDraw::new(),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			//	p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
 			//	p_normal: Self::compute_prog(include_str!("normal.glsl")),
 			//	p_decay: Self::compute_prog(include_str!("udecay.glsl")),
-			//	p_photon: Self::compute_prog(include_str!("photon.glsl")),
-			//	p_render,
 			//	pos: Texture::new2d(R32F, size),
 			//	vel: Texture::new2d(R32F, size),
 			//	acc: Texture::new2d(R32F, size),
 			//	normal: Texture::new2d(gl::RGBA32F, size),
-			//	photon: Texture::new2d(gl::RGBA8UI, size).filter_nearest(),
 			//	sky: load_image(sky).filter_linear().clamp_to_edge(), // TODO !!
 			//	floor: load_image(floor).filter_linear().mirrored_repeat(),
-			//	vao: Self::vao(p_render),
 			//	time_steps_per_draw: 6,
 			//	rand_seed: 0,
 			//	start: time::Instant::now(),
@@ -234,15 +296,7 @@ impl State {
 		let bg = self.background;
 		glClearColor(bg.0, bg.1, bg.2, 1.0);
 		glClear(gl::COLOR_BUFFER_BIT);
-
-		// self.p_render.use_program();
-		// self.vao.bind();
-		// self.normal.bind_texture_unit(0);
-		// self.sky.bind_texture_unit(1);
-		// self.floor.bind_texture_unit(2);
-		// self.photon.bind_texture_unit(3);
-
-		// glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
+		self.p_draw.exec(&self.rendered);
 	}
 
 	fn exec(&self, p: Program) {
@@ -289,36 +343,6 @@ impl State {
 
 	fn on_cursor_left(&self) {
 		//self.p_mouse.set1f("mouse_pow", 0.0);
-	}
-
-	fn vao(prog: Program) -> VertexArray {
-		let v_pos = [
-			//
-			vec2(-1.0, 1.0),
-			vec2(-1.0, -1.0),
-			vec2(1.0, 1.0),
-			vec2(1.0, -1.0),
-		];
-		let v_pos_buf = Buffer::new(&v_pos, 0);
-
-		let v_texc = [
-			//
-			vec2(0.0, 0.0),
-			vec2(0.0, 1.0),
-			vec2(1.0, 0.0),
-			vec2(1.0, 1.0),
-		];
-		let v_texc_buf = Buffer::new(&v_texc, 0);
-
-		let v_pos_attr = prog.attrib_location("vertex_pos").unwrap();
-		let v_texc_attr = prog.attrib_location("vertex_tex_coord").unwrap();
-		VertexArray::create()
-			.enable_attrib(v_pos_attr)
-			.attrib_format(v_pos_attr, 2, gl::FLOAT, false, 0)
-			.vertex_buffer(v_pos_attr, v_pos_buf, 0, sizeof(v_pos[0]))
-			.enable_attrib(v_texc_attr)
-			.attrib_format(v_texc_attr, 2, gl::FLOAT, false, 0)
-			.vertex_buffer(v_texc_attr, v_texc_buf, 0, sizeof(v_texc[0]))
 	}
 }
 

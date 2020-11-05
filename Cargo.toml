@@ -2,6 +2,7 @@
 
 members = [
     "gravity",
+    "water",
     "gl_img",
     "gl_obj",
     "gl_safe",

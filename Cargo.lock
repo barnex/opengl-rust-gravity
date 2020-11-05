@@ -1270,6 +1270,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "water"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "gl_img",
+ "gl_obj",
+ "gl_safe",
+ "gl_win",
+ "glutin",
+ "image",
+ "structopt",
+]
+
+[[package]]
 name = "wayland-client"
 version = "0.23.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
