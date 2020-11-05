@@ -44,8 +44,11 @@ fn main() {
 
 	let s = State::new(&args);
 
-	s.p_verlet.exec(&s.pos, &s.vel, &s.acc);
-	s.p_gravity.exec(&s.pos, &s.acc);
+	//s.p_verlet.exec(&s.pos, &s.vel, &s.acc);
+	//s.p_gravity.exec(&s.pos, &s.acc);
+
+	//s.p_render.exec(&s.pos, &s.rendered);
+	//s.rendered.
 
 	for p in s.pos.get_data() {
 		println!("pos {:?}", p)
@@ -68,130 +71,12 @@ fn main() {
 	run_event_loop(ev, win, s);
 }
 
-struct PRender {
-	prog: Program,
-	pos_index: u32,
-}
-
-impl PRender {
-	fn new() -> Self {
-		let prog = Program::new(&[Shader::new_comp(include_str!("render.glsl"))]);
-		let pos_index = prog.shader_storage_block_index("pos");
-		Self { prog, pos_index }
-	}
-
-	fn exec(&self, pos: &Buffer<vec2>, tex: &Texture) {
-		tex.bind_image_unit(0 /* tex location*/, READ_ONLY);
-		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1))
-	}
-}
-
-struct PDraw {
-	prog: Program,
-	vao: VertexArray,
-}
-
-impl PDraw {
-	fn new() -> Self {
-		let prog = Program::new(&[
-			Shader::new_vert(include_str!("texture.vert")), //
-			Shader::new_frag(include_str!("height.frag")),
-		]);
-		let v_pos = [
-			//
-			vec2(-1.0, 1.0),
-			vec2(-1.0, -1.0),
-			vec2(1.0, 1.0),
-			vec2(1.0, -1.0),
-		];
-		let v_pos_buf = Buffer::new(&v_pos, 0);
-
-		let v_texc = [
-			//
-			vec2(0.0, 0.0),
-			vec2(0.0, 1.0),
-			vec2(1.0, 0.0),
-			vec2(1.0, 1.0),
-		];
-		let v_texc_buf = Buffer::new(&v_texc, 0);
-
-		let v_pos_attr = prog.attrib_location("vertex_pos").unwrap();
-		let v_texc_attr = prog.attrib_location("vertex_tex_coord").unwrap();
-		let vao = VertexArray::create() //
-			.enable_attrib(v_pos_attr)
-			.attrib_format(v_pos_attr, 2, gl::FLOAT, false, 0)
-			.vertex_buffer(v_pos_attr, v_pos_buf, 0, sizeof(v_pos[0]));
-		//.enable_attrib(v_texc_attr)
-		//.attrib_format(v_texc_attr, 2, gl::FLOAT, false, 0)
-		//.vertex_buffer(v_texc_attr, v_texc_buf, 0, sizeof(v_texc[0]));
-
-		Self { prog, vao }
-	}
-
-	fn exec(&self, tex: &Texture) {
-		self.prog.use_program();
-		self.vao.bind();
-		tex.bind_texture_unit(0);
-		glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
-	}
-}
-
-struct PVerlet {
-	prog: Program,
-	pos_index: u32,
-	vel_index: u32,
-	acc_index: u32,
-}
-
-impl PVerlet {
-	fn new() -> Self {
-		let prog = Program::new(&[Shader::new_comp(include_str!("verlet.glsl"))]);
-		Self {
-			prog,
-			pos_index: prog.shader_storage_block_index("pos"),
-			vel_index: prog.shader_storage_block_index("vel"),
-			acc_index: prog.shader_storage_block_index("acc"),
-		}
-	}
-
-	fn exec(&self, pos: &Buffer<vec2>, vel: &Buffer<vec2>, acc: &Buffer<vec2>) {
-		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		self.prog.bind_shader_storage_buffer(vel, self.vel_index, self.vel_index);
-		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
-		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
-	}
-}
-
-struct PGravity {
-	prog: Program,
-	pos_index: u32,
-	acc_index: u32,
-}
-
-impl PGravity {
-	fn new() -> Self {
-		let prog = Program::new(&[Shader::new_comp(include_str!("gravity.glsl"))]);
-		Self {
-			prog,
-			pos_index: prog.shader_storage_block_index("pos"),
-			acc_index: prog.shader_storage_block_index("acc"),
-		}
-	}
-
-	fn exec(&self, pos: &Buffer<vec2>, acc: &Buffer<vec2>) {
-		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
-		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
-	}
-}
-
 struct State {
 	background: vec3,
 	pos: Buffer<vec2>,
 	vel: Buffer<vec2>,
 	acc: Buffer<vec2>,
-	p_gravity: PGravity,
+	p_accel: PAccel,
 	p_verlet: PVerlet,
 	p_render: PRender,
 	p_draw: PDraw,
@@ -218,9 +103,10 @@ impl State {
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
 			vel: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
 			acc: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
-			rendered: Texture::new2d(gl::RGBA8UI, size).filter_nearest(),
+			//rendered: Texture::new2d(gl::RGBA8UI, size),
+			rendered: load_image("sky.jpg").filter_linear().clamp_to_edge(), // TODO !!
 			p_verlet: PVerlet::new(),
-			p_gravity: PGravity::new(),
+			p_accel: PAccel::new(),
 			p_render: PRender::new(),
 			p_draw: PDraw::new(),
 			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
@@ -244,7 +130,7 @@ impl State {
 		let n_particles = args.num_particles as usize;
 		let mut pos = Vec::<vec2>::with_capacity(n_particles);
 		for _ in 0..n_particles {
-			pos.push(vec2(1.0, 2.0));
+			pos.push(vec2(0.5, 0.2));
 		}
 		pos
 	}
@@ -292,7 +178,9 @@ impl State {
 	//	self.exec(self.p_photon);
 	//}
 
-	fn draw(&self, _w: &Window) {
+	fn render_and_draw(&self, _w: &Window) {
+		println!("render_and_draw");
+		//self.p_render.exec(&self.pos, &self.rendered);
 		let bg = self.background;
 		glClearColor(bg.0, bg.1, bg.2, 1.0);
 		glClear(gl::COLOR_BUFFER_BIT);
@@ -324,7 +212,7 @@ impl State {
 	}
 
 	fn on_redraw_requested(&self, win: &Window) {
-		self.draw(&win);
+		self.render_and_draw(&win);
 		win.swap_buffers().unwrap();
 		// self.steps(self.time_steps_per_draw);
 		// self.frames.set(self.frames.get() + 1);
@@ -343,6 +231,125 @@ impl State {
 
 	fn on_cursor_left(&self) {
 		//self.p_mouse.set1f("mouse_pow", 0.0);
+	}
+}
+
+struct PRender {
+	prog: Program,
+	pos_index: u32,
+}
+
+impl PRender {
+	fn new() -> Self {
+		let prog = Program::new(&[Shader::new_comp(include_str!("render.glsl"))]);
+		let pos_index = prog.shader_storage_block_index("pos");
+		Self { prog, pos_index }
+	}
+
+	fn exec(&self, pos: &Buffer<vec2>, tex: &Texture) {
+		println!("exec fake PRender!");
+		tex.bind_image_unit(0 /* tex location*/, READ_ONLY);
+		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1))
+	}
+}
+
+struct PDraw {
+	prog: Program,
+	vao: VertexArray,
+}
+
+impl PDraw {
+	fn new() -> Self {
+		let prog = Program::new(&[
+			Shader::new_vert(include_str!("texture.vert")), //
+			Shader::new_frag(include_str!("height.frag")),
+		]);
+		let v_pos = [
+			//
+			vec2(-1.0, 1.0),
+			vec2(-1.0, -1.0),
+			vec2(1.0, 1.0),
+			vec2(1.0, -1.0),
+		];
+		let v_pos_buf = Buffer::new(&v_pos, 0);
+
+		let v_texc = [
+			//
+			vec2(0.0, 0.0),
+			vec2(0.0, 1.0),
+			vec2(1.0, 0.0),
+			vec2(1.0, 1.0),
+		];
+		let v_texc_buf = Buffer::new(&v_texc, 0);
+
+		let v_pos_attr = prog.attrib_location("vertex_pos").unwrap();
+		let v_texc_attr = prog.attrib_location("vertex_tex_coord").unwrap();
+		let vao = VertexArray::create() //
+			.enable_attrib(v_pos_attr)
+			.attrib_format(v_pos_attr, 2, gl::FLOAT, false, 0)
+			.vertex_buffer(v_pos_attr, v_pos_buf, 0, sizeof(v_pos[0]))
+			.enable_attrib(v_texc_attr)
+			.attrib_format(v_texc_attr, 2, gl::FLOAT, false, 0)
+			.vertex_buffer(v_texc_attr, v_texc_buf, 0, sizeof(v_texc[0]));
+
+		Self { prog, vao }
+	}
+
+	fn exec(&self, tex: &Texture) {
+		self.prog.use_program();
+		self.vao.bind();
+		tex.bind_texture_unit(0);
+		glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
+	}
+}
+
+struct PVerlet {
+	prog: Program,
+	pos_index: u32,
+	vel_index: u32,
+	acc_index: u32,
+}
+
+impl PVerlet {
+	fn new() -> Self {
+		let prog = Program::new(&[Shader::new_comp(include_str!("verlet.glsl"))]);
+		Self {
+			prog,
+			pos_index: prog.shader_storage_block_index("pos"),
+			vel_index: prog.shader_storage_block_index("vel"),
+			acc_index: prog.shader_storage_block_index("acc"),
+		}
+	}
+
+	fn exec(&self, pos: &Buffer<vec2>, vel: &Buffer<vec2>, acc: &Buffer<vec2>) {
+		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		self.prog.bind_shader_storage_buffer(vel, self.vel_index, self.vel_index);
+		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
+		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
+	}
+}
+
+struct PAccel {
+	prog: Program,
+	pos_index: u32,
+	acc_index: u32,
+}
+
+impl PAccel {
+	fn new() -> Self {
+		let prog = Program::new(&[Shader::new_comp(include_str!("accel.glsl"))]);
+		PAccel {
+			prog,
+			pos_index: prog.shader_storage_block_index("pos"),
+			acc_index: prog.shader_storage_block_index("acc"),
+		}
+	}
+
+	fn exec(&self, pos: &Buffer<vec2>, acc: &Buffer<vec2>) {
+		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
+		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
 	}
 }
 
