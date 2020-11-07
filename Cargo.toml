@@ -2,7 +2,6 @@
 
 members = [
     "gravity",
-    "gravity_old",
     "gl_img",
     "gl_obj",
     "gl_safe",
