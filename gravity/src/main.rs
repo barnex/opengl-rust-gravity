@@ -29,7 +29,7 @@ struct Args {
 	width: u32,
 
 	/// Image height, (pixels).
-	#[structopt(short, long, default_value = "512")]
+	#[structopt(short, long, default_value = "1024")]
 	height: u32,
 
 	/// Verlet integration time step.
@@ -47,15 +47,14 @@ fn main() {
 	// window
 	let size = uvec2(args.width, args.height);
 	let (w, h) = (size.0, size.1);
-	let (win, ev) = init_gl_window(w, h, "waves");
+	let (win, ev) = init_gl_window(w, h, "gravity");
 
 	// water state
 	let s = State::new(&args);
 
 	//s.p_accel //
 	//.set1f("damping", args.damping);
-	//s.p_verlet //
-	//.set1f("dt", args.dt);
+	s.p_verlet.set1f("dt", args.dt);
 
 	//s.p_mouse //
 	//.set1f("mouse_rad", args.mouse_radius);
@@ -127,16 +126,17 @@ impl State {
 		let mut vel = Vec::<vec2>::with_capacity((w * h) as usize);
 
 		let mut rng = rand::thread_rng();
-		let mut rand = move || rng.gen::<f32>();
+		let mut urand = move || rng.gen::<f32>();
+		let mut irand = move || rng.gen::<f32>() - 0.5;
 
 		for y in 0..h {
 			for x in 0..w {
-				let th = 2.0 * PI * rand();
-				let r = rand() + 0.2;
+				let th = 2.0 * PI * urand();
+				let r = urand() + 0.2;
 				let x = r * th.cos();
 				let y = r * th.sin();
 				pos.push(vec2(x, y));
-				vel.push(vec2(y, -x)); // TODO
+				vel.push(vec2(y + 0.3 * irand(), -x - 0.3 * irand())); // TODO
 			}
 		}
 		(pos, vel)

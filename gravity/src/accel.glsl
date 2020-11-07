@@ -20,7 +20,9 @@ uniform float damping;
 void main(){
 	ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
 
-	vec2 a = vec2(0.0, 0.0); // TODO
+	vec2 p = imageLoad(position, xy).xy;
+	float r = length(p);
+	vec2 a = -p / (r*r*r);
 
 	imageStore(acceleration, xy, vec4(a, 0.0, 0.0));
 }
