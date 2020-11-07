@@ -9,5 +9,6 @@ out vec4 output_color;
 layout(binding = 0) uniform usampler2D rendered;
 
 void main() {
-	output_color = texture(rendered, frag_tex_coord);
+	vec4 c = texture(rendered, frag_tex_coord);
+	output_color = vec4(c.rgb, 1.0);
 }

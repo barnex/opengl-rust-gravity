@@ -46,9 +46,7 @@ fn main() {
 
 	//s.p_verlet.exec(&s.pos, &s.vel, &s.acc);
 	//s.p_gravity.exec(&s.pos, &s.acc);
-
 	//s.p_render.exec(&s.pos, &s.rendered);
-	//s.rendered.
 
 	for p in s.pos.get_data() {
 		println!("pos {:?}", p)
@@ -72,6 +70,7 @@ fn main() {
 }
 
 struct State {
+	win_size: uvec2,
 	background: vec3,
 	pos: Buffer<vec2>,
 	vel: Buffer<vec2>,
@@ -81,14 +80,7 @@ struct State {
 	p_render: PRender,
 	p_draw: PDraw,
 	rendered: Texture,
-	//p_mouse: Program,
-	//p_normal: Program,
-	//p_decay: Program,
-	//normal: Texture,
-	//sky: Texture,
-	//floor: Texture,
 	//time_steps_per_draw: u32,
-	//rand_seed: i32,
 	//start: time::Instant,
 	//frames: Cell<i32>,
 }
@@ -98,13 +90,15 @@ impl State {
 		let FLAGS = 0;
 		let size = uvec2(args.width, args.height);
 
+		let pix: [u32; 1] = [0xffffff];
 		Self {
+			win_size: uvec2(args.width, args.height),
 			background: vec3(0.5, 0.5, 0.5),
 			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
 			vel: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
 			acc: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
-			//rendered: Texture::new2d(gl::RGBA8UI, size),
-			rendered: load_image("sky.jpg").filter_linear().clamp_to_edge(), // TODO !!
+			rendered: Texture::new2d(gl::RGBA8UI, size).filter_nearest().sub_image1d(0, 1, 1, gl::RGBA8UI, gl::INT, &pix),
+			//rendered: load_image("sky.jpg").filter_linear().clamp_to_edge(), // TODO !!
 			p_verlet: PVerlet::new(),
 			p_accel: PAccel::new(),
 			p_render: PRender::new(),
@@ -180,7 +174,7 @@ impl State {
 
 	fn render_and_draw(&self, _w: &Window) {
 		println!("render_and_draw");
-		//self.p_render.exec(&self.pos, &self.rendered);
+		self.p_render.exec(&self.pos, &self.rendered);
 		let bg = self.background;
 		glClearColor(bg.0, bg.1, bg.2, 1.0);
 		glClear(gl::COLOR_BUFFER_BIT);
@@ -236,21 +230,32 @@ impl State {
 
 struct PRender {
 	prog: Program,
-	pos_index: u32,
+	//pos_index: u32,
 }
 
 impl PRender {
 	fn new() -> Self {
 		let prog = Program::new(&[Shader::new_comp(include_str!("render.glsl"))]);
-		let pos_index = prog.shader_storage_block_index("pos");
-		Self { prog, pos_index }
+		//let pos_index = prog.shader_storage_block_index("pos");
+		Self { prog }
 	}
 
 	fn exec(&self, pos: &Buffer<vec2>, tex: &Texture) {
-		println!("exec fake PRender!");
-		tex.bind_image_unit(0 /* tex location*/, READ_ONLY);
-		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1))
+		//tex.bind_image_unit(0, READ_WRITE);
+		//self.exec(self.p_decay);
+
+		//self.normal.bind_image_unit(0, READ_ONLY);
+		//self.photon.bind_image_unit(1, READ_WRITE);
+		//self.exec(self.p_photon);
+
+		//println!("exec fake PRender!");
+		//self.prog.use_program(); //
+		//tex.bind_image_unit(0, READ_WRITE);
+		////let loc = self.prog.uniform_location("rendered");
+		////println!("loc rendered: {}", loc);
+		//self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
+		//let comp_size = uvec3(tex.size().0, tex.size().1, 1);
+		//self.prog.compute_and_sync(comp_size);
 	}
 }
 
