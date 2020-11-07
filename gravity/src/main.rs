@@ -136,7 +136,7 @@ impl State {
 				let x = r * th.cos();
 				let y = r * th.sin();
 				pos.push(vec2(x, y));
-				vel.push(vec2(y + 0.3 * irand(), -x - 0.3 * irand())); // TODO
+				vel.push(vec2(y + 0.4 * irand(), -x - 0.4 * irand())); // TODO
 			}
 		}
 		(pos, vel)
