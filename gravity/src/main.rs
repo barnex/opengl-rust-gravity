@@ -75,12 +75,12 @@ struct State {
 	p_verlet: Program,
 	p_mouse: Program,
 	p_render: Program,
-	p_photon: Program,
+	p_density: Program,
 	p_decay: Program,
 	pos: Texture,
 	vel: Texture,
 	acc: Texture,
-	photon: Texture,
+	density: Texture,
 	vao: VertexArray,
 	time_steps_per_draw: u32,
 	start: time::Instant,
@@ -101,13 +101,13 @@ impl State {
 			p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
 			p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
-			p_decay: Self::compute_prog(include_str!("udecay.glsl")),
-			p_photon: Self::compute_prog(include_str!("render.glsl")),
+			p_decay: Self::compute_prog(include_str!("decay.glsl")),
+			p_density: Self::compute_prog(include_str!("density.glsl")),
 			p_render,
 			pos: Self::vec_to_tex(size, &pos),
 			vel: Self::vec_to_tex(size, &vel),
 			acc: Texture::new2d(RG32F, size),
-			photon: Texture::new2d(RGBA8UI, size).filter_nearest(),
+			density: Texture::new2d(RGBA8UI, size).filter_nearest(),
 			vao: Self::vao(p_render),
 			time_steps_per_draw: 6,
 			start: time::Instant::now(),
@@ -148,7 +148,7 @@ impl State {
 			self.update_pos_vel();
 			//	self.apply_mouse();
 		}
-		self.update_photon();
+		self.update_density();
 	}
 
 	fn update_acc(&self) {
@@ -170,13 +170,13 @@ impl State {
 		self.exec(self.p_mouse)
 	}
 
-	fn update_photon(&self) {
-		self.photon.bind_image_unit(0, READ_WRITE);
+	fn update_density(&self) {
+		self.density.bind_image_unit(0, READ_WRITE);
 		self.exec(self.p_decay);
 
 		self.pos.bind_image_unit(0, READ_WRITE); // TODO
-		self.photon.bind_image_unit(1, READ_WRITE);
-		self.exec(self.p_photon);
+		self.density.bind_image_unit(1, READ_WRITE);
+		self.exec(self.p_density);
 	}
 
 	fn draw(&self, _w: &Window) {
@@ -185,7 +185,7 @@ impl State {
 
 		self.p_render.use_program();
 		self.vao.bind();
-		self.photon.bind_texture_unit(3);
+		self.density.bind_texture_unit(3);
 
 		glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
 	}
