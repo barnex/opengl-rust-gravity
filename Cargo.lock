@@ -498,6 +498,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "gravity_old"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "gl_img",
+ "gl_obj",
+ "gl_safe",
+ "gl_win",
+ "glutin",
+ "image",
+ "structopt",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1267,20 +1281,6 @@ dependencies = [
  "same-file",
  "winapi 0.3.9",
  "winapi-util",
-]
-
-[[package]]
-name = "water"
-version = "0.1.0"
-dependencies = [
- "gl",
- "gl_img",
- "gl_obj",
- "gl_safe",
- "gl_win",
- "glutin",
- "image",
- "structopt",
 ]
 
 [[package]]

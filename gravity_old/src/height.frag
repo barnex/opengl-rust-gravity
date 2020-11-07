@@ -14,7 +14,7 @@ in  vec2 frag_tex_coord;
 out vec4 output_color;
 
 void main() {
-	float z = texture(tex_z, f_texc).r;
+	float z = texture(tex_z, frag_tex_coord).r;
 	if (z > 0.0){
 		output_color = vec4(vec3(0.9, 0.7, 0.5) * z, 1.0);
 	}else{

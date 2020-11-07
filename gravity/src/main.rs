@@ -5,58 +5,62 @@ extern crate image;
 extern crate structopt;
 
 use gl::*;
-use gl_img::*;
 use gl_obj::*;
 use gl_safe::*;
 use gl_win::*;
 use glutin::event::ElementState;
 use glutin::event::MouseButton;
+use std::cell::Cell;
 use std::sync::Arc;
 use std::time;
 use structopt::StructOpt;
 
-/// Gravity simulation.
+const MIN_POW: f32 = 0.05;
+const MAX_POW: f32 = 0.2;
+
+/// OpenGL water simulation.
 #[derive(StructOpt)]
-struct Args {
+struct Cli {
 	/// Image width (pixels).
-	#[structopt(short, long, default_value = "512")]
+	#[structopt(short, long, default_value = "1024")]
 	width: u32,
 
 	/// Image height, (pixels).
 	#[structopt(short, long, default_value = "512")]
 	height: u32,
 
-	/// Number of particles.
-	#[structopt(short, long, default_value = "16")]
-	num_particles: u32,
+	/// Damping coefficient.
+	#[structopt(long, default_value = "2e-3")]
+	damping: f32,
 
 	/// Verlet integration time step.
 	#[structopt(long, default_value = "0.6")]
 	dt: f32,
+
+	/// Radius of mouse disturbance.
+	#[structopt(long, default_value = "50")]
+	mouse_radius: f32,
 }
 
 fn main() {
-	let args = Args::from_args();
+	let args = Cli::from_args();
 
 	// window
 	let size = uvec2(args.width, args.height);
-	let (win, ev) = init_gl_window(size.0, size.1, "gravity");
+	let (w, h) = (size.0, size.1);
+	let (win, ev) = init_gl_window(w, h, "waves");
 
+	// water state
 	let s = State::new(&args);
 
-	//s.p_verlet.exec(&s.pos, &s.vel, &s.acc);
-	//s.p_gravity.exec(&s.pos, &s.acc);
-	//s.p_render.exec(&s.pos, &s.rendered);
+	s.p_accel //
+		.set1f("damping", args.damping);
 
-	for p in s.pos.get_data() {
-		println!("pos {:?}", p)
-	}
-	for v in s.vel.get_data() {
-		println!("vel {:?}", v)
-	}
-	for a in s.acc.get_data() {
-		println!("acc {:?}", a)
-	}
+	s.p_verlet //
+		.set1f("dt", args.dt);
+
+	s.p_mouse //
+		.set1f("mouse_rad", args.mouse_radius);
 
 	// continuously pump redraws
 	let proxy = ev.create_proxy();
@@ -70,149 +74,144 @@ fn main() {
 }
 
 struct State {
-	win_size: uvec2,
-	background: vec3,
-	pos: Buffer<vec2>,
-	vel: Buffer<vec2>,
-	acc: Buffer<vec2>,
-	p_accel: PAccel,
-	p_verlet: PVerlet,
-	p_render: PRender,
-	p_draw: PDraw,
-	rendered: Texture,
-	//time_steps_per_draw: u32,
-	//start: time::Instant,
-	//frames: Cell<i32>,
+	p_accel: Program,
+	p_verlet: Program,
+	p_mouse: Program,
+	p_render: Program,
+	p_photon: Program,
+	p_decay: Program,
+	pos: Texture,
+	vel: Texture,
+	acc: Texture,
+	photon: Texture,
+	vao: VertexArray,
+	time_steps_per_draw: u32,
+	start: time::Instant,
+	frames: Cell<i32>,
 }
 
 impl State {
-	fn new(args: &Args) -> Self {
-		let FLAGS = 0;
+	fn new(args: &Cli) -> Self {
 		let size = uvec2(args.width, args.height);
-
-		let pix: [u32; 1] = [0xffffff];
+		let p_render = Program::new(&[
+			//
+			Shader::new_vert(include_str!("texture.vert")),
+			Shader::new_frag(include_str!("draw.frag")),
+		]);
 		Self {
-			win_size: uvec2(args.width, args.height),
-			background: vec3(0.5, 0.5, 0.5),
-			pos: Buffer::new(&Self::init_pos(&args), FLAGS),
-			vel: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
-			acc: Buffer::new(&zeros(args.num_particles as usize), FLAGS),
-			rendered: Texture::new2d(gl::RGBA8UI, size).filter_nearest().sub_image1d(0, 1, 1, gl::RGBA8UI, gl::INT, &pix),
-			//rendered: load_image("sky.jpg").filter_linear().clamp_to_edge(), // TODO !!
-			p_verlet: PVerlet::new(),
-			p_accel: PAccel::new(),
-			p_render: PRender::new(),
-			p_draw: PDraw::new(),
-			//	p_accel: Self::compute_prog(include_str!("accel.glsl")),
-			//	p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
-			//	p_normal: Self::compute_prog(include_str!("normal.glsl")),
-			//	p_decay: Self::compute_prog(include_str!("udecay.glsl")),
-			//	pos: Texture::new2d(R32F, size),
-			//	vel: Texture::new2d(R32F, size),
-			//	acc: Texture::new2d(R32F, size),
-			//	normal: Texture::new2d(gl::RGBA32F, size),
-			//	sky: load_image(sky).filter_linear().clamp_to_edge(), // TODO !!
-			//	floor: load_image(floor).filter_linear().mirrored_repeat(),
-			//	time_steps_per_draw: 6,
-			//	rand_seed: 0,
-			//	start: time::Instant::now(),
-			//	frames: Cell::new(0),
+			p_accel: Self::compute_prog(include_str!("accel.glsl")),
+			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
+			p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
+			p_decay: Self::compute_prog(include_str!("udecay.glsl")),
+			p_photon: Self::compute_prog(include_str!("render.glsl")),
+			p_render,
+			pos: Self::initial_pos(&args),
+			vel: Texture::new2d(RGBA32F, size),
+			acc: Texture::new2d(RGBA32F, size),
+			photon: Texture::new2d(gl::RGBA8UI, size).filter_nearest(),
+			vao: Self::vao(p_render),
+			time_steps_per_draw: 6,
+			start: time::Instant::now(),
+			frames: Cell::new(0),
 		}
 	}
 
-	fn init_pos(args: &Args) -> Vec<vec2> {
-		let n_particles = args.num_particles as usize;
-		let mut pos = Vec::<vec2>::with_capacity(n_particles);
-		for _ in 0..n_particles {
-			pos.push(vec2(0.5, 0.2));
+	fn initial_pos(args: &Cli) -> Texture {
+		let (w, h) = (args.width, args.height);
+		let mut pix = Vec::<vec4>::with_capacity((w * h) as usize);
+		for y in 0..h {
+			for x in 0..w {
+				let x = x as f32 / 2.0;
+				/// w as f32;
+				let y = y as f32 / 2.0;
+				/// h as f32;
+				pix.push(vec4(x, y, 0.0, 0.0));
+			}
 		}
-		pos
+		Texture::new2d(RGBA32F, uvec2(w, h)).sub_image2d(0, 0, 0, w, h, gl::RGBA, gl::FLOAT, &pix)
 	}
 
-	fn step(&mut self) {
-		self.update_pos_vel();
-
+	fn steps(&mut self, n: u32) {
 		//for _ in 0..n {
 		//	self.update_acc();
 		//	self.update_pos_vel();
 		//	self.apply_mouse();
 		//}
-		//self.update_normal();
-		//self.rand_seed += 1;
-		//self.p_photon.set1i("rand_seed", self.rand_seed);
-		//self.update_photon();
+		self.update_photon();
 	}
 
 	fn update_acc(&self) {
-		//self.pos.bind_image_unit(0, READ_ONLY);
-		//self.vel.bind_image_unit(1, READ_ONLY);
-		//self.acc.bind_image_unit(2, WRITE_ONLY);
-		//self.exec(self.p_accel)
+		self.pos.bind_image_unit(0, READ_ONLY);
+		self.vel.bind_image_unit(1, READ_ONLY);
+		self.acc.bind_image_unit(2, WRITE_ONLY);
+		self.exec(self.p_accel)
 	}
 
 	fn update_pos_vel(&self) {
-		//self.p_verlet.uniform1i(0, self.pos.handle() as i32);
-		//self.pos.bind_image_unit(0, READ_WRITE);
-		//self.vel.bind_image_unit(1, READ_WRITE);
-		//self.acc.bind_image_unit(2, READ_ONLY);
-		self.p_verlet.exec(&self.pos, &self.vel, &self.acc)
+		self.pos.bind_image_unit(0, READ_WRITE);
+		self.vel.bind_image_unit(1, READ_WRITE);
+		self.acc.bind_image_unit(2, READ_ONLY);
+		self.exec(self.p_verlet)
 	}
 
 	fn apply_mouse(&self) {
-		//self.pos.bind_image_unit(0, READ_WRITE);
-		//self.exec(self.p_mouse)
+		self.pos.bind_image_unit(0, READ_WRITE);
+		self.exec(self.p_mouse)
 	}
 
-	//fn update_photon(&self) {
-	//	self.photon.bind_image_unit(0, READ_WRITE);
-	//	self.exec(self.p_decay);
+	fn update_photon(&self) {
+		self.photon.bind_image_unit(0, READ_WRITE);
+		self.exec(self.p_decay);
 
-	//	self.normal.bind_image_unit(0, READ_ONLY);
-	//	self.photon.bind_image_unit(1, READ_WRITE);
-	//	self.exec(self.p_photon);
-	//}
+		self.pos.bind_image_unit(0, READ_WRITE); // TODO
+		self.photon.bind_image_unit(1, READ_WRITE);
+		self.exec(self.p_photon);
+	}
 
-	fn render_and_draw(&self, _w: &Window) {
-		println!("render_and_draw");
-		self.p_render.exec(&self.pos, &self.rendered);
-		let bg = self.background;
-		glClearColor(bg.0, bg.1, bg.2, 1.0);
+	fn draw(&self, _w: &Window) {
+		glClearColor(0.5, 0.5, 0.5, 1.0);
 		glClear(gl::COLOR_BUFFER_BIT);
-		self.p_draw.exec(&self.rendered);
+
+		self.p_render.use_program();
+		self.vao.bind();
+		self.photon.bind_texture_unit(3);
+
+		glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
 	}
 
 	fn exec(&self, p: Program) {
-		p.compute_and_sync(uvec3(self.pos.len() as u32, 1, 1))
+		let xy = self.pos.size();
+		p.compute_and_sync(uvec3(xy.0, xy.1, 1))
 	}
 
 	fn on_cursor_moved(&self, position: (f64, f64)) {
-		//let (w, h) = (self.pos.size().0, self.pos.size().1);
-		//let (x, y) = ((position.0) as i32, (position.1) as i32);
-		//if x >= 0 && x < (w as i32) && y >= 0 && y < (h as i32) {
-		//	self.p_mouse.set2i("mouse_pos", x, y);
-		//}
+		let (w, h) = (self.pos.size().0, self.pos.size().1);
+		let (x, y) = ((position.0) as i32, (position.1) as i32);
+		if x >= 0 && x < (w as i32) && y >= 0 && y < (h as i32) {
+			self.p_mouse.set2i("mouse_pos", x, y);
+		}
 	}
 
 	fn on_mouse_input(&self, button: MouseButton, state: ElementState) {
-		//let sign = match button {
-		//	glutin::event::MouseButton::Right => -1.0,
-		//	_ => 1.0,
-		//};
-		//let pow = match state {
-		//	ElementState::Pressed => MAX_POW,
-		//	ElementState::Released => MIN_POW,
-		//};
-		//self.p_mouse.set1f("mouse_pow", sign * pow);
+		let sign = match button {
+			glutin::event::MouseButton::Right => -1.0,
+			_ => 1.0,
+		};
+		let pow = match state {
+			ElementState::Pressed => MAX_POW,
+			ElementState::Released => MIN_POW,
+		};
+		self.p_mouse.set1f("mouse_pow", sign * pow);
 	}
 
-	fn on_redraw_requested(&self, win: &Window) {
-		self.render_and_draw(&win);
+	fn on_redraw_requested(&mut self, win: &Window) {
+		self.draw(&win);
 		win.swap_buffers().unwrap();
-		// self.steps(self.time_steps_per_draw);
-		// self.frames.set(self.frames.get() + 1);
-		// let secs = self.start.elapsed().as_secs_f32();
-		// let fps = self.frames.get() as f32 / secs;
-		// dbg!(fps);
+		self.steps(self.time_steps_per_draw);
+		self.frames.set(self.frames.get() + 1);
+		let secs = self.start.elapsed().as_secs_f32();
+		let fps = self.frames.get() as f32 / secs;
+		dbg!(fps);
 	}
 
 	fn on_user_event(&self, win: &Window) {
@@ -220,56 +219,18 @@ impl State {
 	}
 
 	fn on_cursor_entered(&self) {
-		//self.p_mouse.set1f("mouse_pow", MIN_POW);
+		self.p_mouse.set1f("mouse_pow", MIN_POW);
 	}
 
 	fn on_cursor_left(&self) {
-		//self.p_mouse.set1f("mouse_pow", 0.0);
-	}
-}
-
-struct PRender {
-	prog: Program,
-	//pos_index: u32,
-}
-
-impl PRender {
-	fn new() -> Self {
-		let prog = Program::new(&[Shader::new_comp(include_str!("render.glsl"))]);
-		//let pos_index = prog.shader_storage_block_index("pos");
-		Self { prog }
+		self.p_mouse.set1f("mouse_pow", 0.0);
 	}
 
-	fn exec(&self, pos: &Buffer<vec2>, tex: &Texture) {
-		//tex.bind_image_unit(0, READ_WRITE);
-		//self.exec(self.p_decay);
-
-		//self.normal.bind_image_unit(0, READ_ONLY);
-		//self.photon.bind_image_unit(1, READ_WRITE);
-		//self.exec(self.p_photon);
-
-		//println!("exec fake PRender!");
-		//self.prog.use_program(); //
-		//tex.bind_image_unit(0, READ_WRITE);
-		////let loc = self.prog.uniform_location("rendered");
-		////println!("loc rendered: {}", loc);
-		//self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		//let comp_size = uvec3(tex.size().0, tex.size().1, 1);
-		//self.prog.compute_and_sync(comp_size);
+	fn compute_prog(src: &str) -> Program {
+		Program::new(&[Shader::new_comp(src)])
 	}
-}
 
-struct PDraw {
-	prog: Program,
-	vao: VertexArray,
-}
-
-impl PDraw {
-	fn new() -> Self {
-		let prog = Program::new(&[
-			Shader::new_vert(include_str!("texture.vert")), //
-			Shader::new_frag(include_str!("height.frag")),
-		]);
+	fn vao(prog: Program) -> VertexArray {
 		let v_pos = [
 			//
 			vec2(-1.0, 1.0),
@@ -290,71 +251,13 @@ impl PDraw {
 
 		let v_pos_attr = prog.attrib_location("vertex_pos").unwrap();
 		let v_texc_attr = prog.attrib_location("vertex_tex_coord").unwrap();
-		let vao = VertexArray::create() //
+		VertexArray::create()
 			.enable_attrib(v_pos_attr)
 			.attrib_format(v_pos_attr, 2, gl::FLOAT, false, 0)
 			.vertex_buffer(v_pos_attr, v_pos_buf, 0, sizeof(v_pos[0]))
 			.enable_attrib(v_texc_attr)
 			.attrib_format(v_texc_attr, 2, gl::FLOAT, false, 0)
-			.vertex_buffer(v_texc_attr, v_texc_buf, 0, sizeof(v_texc[0]));
-
-		Self { prog, vao }
-	}
-
-	fn exec(&self, tex: &Texture) {
-		self.prog.use_program();
-		self.vao.bind();
-		tex.bind_texture_unit(0);
-		glDrawArrays(gl::TRIANGLE_STRIP, 0, 4);
-	}
-}
-
-struct PVerlet {
-	prog: Program,
-	pos_index: u32,
-	vel_index: u32,
-	acc_index: u32,
-}
-
-impl PVerlet {
-	fn new() -> Self {
-		let prog = Program::new(&[Shader::new_comp(include_str!("verlet.glsl"))]);
-		Self {
-			prog,
-			pos_index: prog.shader_storage_block_index("pos"),
-			vel_index: prog.shader_storage_block_index("vel"),
-			acc_index: prog.shader_storage_block_index("acc"),
-		}
-	}
-
-	fn exec(&self, pos: &Buffer<vec2>, vel: &Buffer<vec2>, acc: &Buffer<vec2>) {
-		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		self.prog.bind_shader_storage_buffer(vel, self.vel_index, self.vel_index);
-		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
-		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
-	}
-}
-
-struct PAccel {
-	prog: Program,
-	pos_index: u32,
-	acc_index: u32,
-}
-
-impl PAccel {
-	fn new() -> Self {
-		let prog = Program::new(&[Shader::new_comp(include_str!("accel.glsl"))]);
-		PAccel {
-			prog,
-			pos_index: prog.shader_storage_block_index("pos"),
-			acc_index: prog.shader_storage_block_index("acc"),
-		}
-	}
-
-	fn exec(&self, pos: &Buffer<vec2>, acc: &Buffer<vec2>) {
-		self.prog.bind_shader_storage_buffer(pos, self.pos_index, self.pos_index);
-		self.prog.bind_shader_storage_buffer(acc, self.acc_index, self.acc_index);
-		self.prog.compute_and_sync(uvec3(pos.len() as u32, 1, 1));
+			.vertex_buffer(v_texc_attr, v_texc_buf, 0, sizeof(v_texc[0]))
 	}
 }
 
@@ -376,13 +279,4 @@ fn run_event_loop(ev: EventLoop, win: Arc<Window>, mut s: State) {
 			_ => (),
 		}
 	});
-}
-
-fn zeros<T: Copy + Default>(n: usize) -> Vec<T> {
-	let mut v = Vec::with_capacity(n);
-	let x = T::default();
-	for _ in 0..n {
-		v.push(x);
-	}
-	v
 }
