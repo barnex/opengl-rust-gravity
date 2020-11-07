@@ -23,7 +23,7 @@ const MAX_POW: f32 = 0.2;
 
 /// OpenGL water simulation.
 #[derive(StructOpt)]
-struct Cli {
+struct Args {
 	/// Image width (pixels).
 	#[structopt(short, long, default_value = "1024")]
 	width: u32,
@@ -32,12 +32,8 @@ struct Cli {
 	#[structopt(short, long, default_value = "512")]
 	height: u32,
 
-	/// Damping coefficient.
-	#[structopt(long, default_value = "2e-3")]
-	damping: f32,
-
 	/// Verlet integration time step.
-	#[structopt(long, default_value = "0.6")]
+	#[structopt(long, default_value = "0.001")]
 	dt: f32,
 
 	/// Radius of mouse disturbance.
@@ -46,7 +42,7 @@ struct Cli {
 }
 
 fn main() {
-	let args = Cli::from_args();
+	let args = Args::from_args();
 
 	// window
 	let size = uvec2(args.width, args.height);
@@ -56,14 +52,13 @@ fn main() {
 	// water state
 	let s = State::new(&args);
 
-	s.p_accel //
-		.set1f("damping", args.damping);
+	//s.p_accel //
+	//.set1f("damping", args.damping);
+	//s.p_verlet //
+	//.set1f("dt", args.dt);
 
-	s.p_verlet //
-		.set1f("dt", args.dt);
-
-	s.p_mouse //
-		.set1f("mouse_rad", args.mouse_radius);
+	//s.p_mouse //
+	//.set1f("mouse_rad", args.mouse_radius);
 
 	// continuously pump redraws
 	let proxy = ev.create_proxy();
@@ -94,13 +89,15 @@ struct State {
 }
 
 impl State {
-	fn new(args: &Cli) -> Self {
+	fn new(args: &Args) -> Self {
+		let (pos, vel) = Self::initial_particles(&args);
 		let size = uvec2(args.width, args.height);
 		let p_render = Program::new(&[
 			//
 			Shader::new_vert(include_str!("texture.vert")),
 			Shader::new_frag(include_str!("draw.frag")),
 		]);
+
 		Self {
 			p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
@@ -108,9 +105,9 @@ impl State {
 			p_decay: Self::compute_prog(include_str!("udecay.glsl")),
 			p_photon: Self::compute_prog(include_str!("render.glsl")),
 			p_render,
-			pos: Self::initial_pos(&args),
-			vel: Texture::new2d(RGBA32F, size),
-			acc: Texture::new2d(RGBA32F, size),
+			pos: Self::vec_to_tex(size, &pos),
+			vel: Self::vec_to_tex(size, &vel),
+			acc: Texture::new2d(RG32F, size),
 			photon: Texture::new2d(RGBA8UI, size).filter_nearest(),
 			vao: Self::vao(p_render),
 			time_steps_per_draw: 6,
@@ -119,36 +116,45 @@ impl State {
 		}
 	}
 
-	fn initial_pos(args: &Cli) -> Texture {
+	fn vec_to_tex(size: uvec2, data: &[vec2]) -> Texture {
+		Texture::new2d(RG32F, size).sub_image2d(0, 0, 0, size.0, size.1, RG, FLOAT, data)
+	}
+
+	fn initial_particles(args: &Args) -> (Vec<vec2>, Vec<vec2>) {
 		let (w, h) = (args.width, args.height);
-		let mut pix = Vec::<vec4>::with_capacity((w * h) as usize);
+
+		let mut pos = Vec::<vec2>::with_capacity((w * h) as usize);
+		let mut vel = Vec::<vec2>::with_capacity((w * h) as usize);
+
 		let mut rng = rand::thread_rng();
 		let mut rand = move || rng.gen::<f32>();
+
 		for y in 0..h {
 			for x in 0..w {
 				let th = 2.0 * PI * rand();
 				let r = rand() + 0.2;
 				let x = r * th.cos();
 				let y = r * th.sin();
-				pix.push(vec4(x, y, 0.0, 0.0));
+				pos.push(vec2(x, y));
+				vel.push(vec2(y, -x)); // TODO
 			}
 		}
-		Texture::new2d(RGBA32F, uvec2(w, h)).sub_image2d(0, 0, 0, w, h, gl::RGBA, gl::FLOAT, &pix)
+		(pos, vel)
 	}
 
 	fn steps(&mut self, n: u32) {
-		//for _ in 0..n {
-		//	self.update_acc();
-		//	self.update_pos_vel();
-		//	self.apply_mouse();
-		//}
+		for _ in 0..n {
+			self.update_acc();
+			self.update_pos_vel();
+			//	self.apply_mouse();
+		}
 		self.update_photon();
 	}
 
 	fn update_acc(&self) {
 		self.pos.bind_image_unit(0, READ_ONLY);
-		self.vel.bind_image_unit(1, READ_ONLY);
-		self.acc.bind_image_unit(2, WRITE_ONLY);
+		self.acc.bind_image_unit(1, WRITE_ONLY);
+		//self.acc.bind_image_unit(2, WRITE_ONLY);
 		self.exec(self.p_accel)
 	}
 

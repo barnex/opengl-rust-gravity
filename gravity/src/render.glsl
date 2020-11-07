@@ -5,7 +5,7 @@
 
 layout (local_size_x = 16, local_size_y = 16) in;
 
-layout(binding = 0, rgba32f) uniform image2D  pos; 
+layout(binding = 0, rg32f) uniform image2D  pos; 
 layout(binding = 1, rgba8ui) uniform uimage2D photons; // output added here
 
 // Colors represented as int,
