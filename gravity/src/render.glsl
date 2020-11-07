@@ -18,6 +18,7 @@ layout(binding = 1, rgba8ui) uniform uimage2D photons; // output added here
 #define BLUE   (RGB(0, 0, 2))
 #define PURPLE (RGB(1, 0, 1))
 
+#define SCALE (200.0)
 
 void main() {
 	ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
@@ -28,7 +29,7 @@ void main() {
 	}
 
 	vec2 p = imageLoad(pos, xy).xy;
-	ivec2 pix = ivec2(p);
+	ivec2 pix = ivec2(p * SCALE + size / 2);
 	imageAtomicAdd(photons, pix, GREEN);
 
 }

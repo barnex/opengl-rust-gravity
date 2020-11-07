@@ -2,6 +2,7 @@ extern crate gl_img;
 extern crate gl_safe;
 extern crate gl_win;
 extern crate image;
+extern crate rand;
 extern crate structopt;
 
 use gl::*;
@@ -10,7 +11,9 @@ use gl_safe::*;
 use gl_win::*;
 use glutin::event::ElementState;
 use glutin::event::MouseButton;
+use rand::prelude::*;
 use std::cell::Cell;
+use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time;
 use structopt::StructOpt;
@@ -108,7 +111,7 @@ impl State {
 			pos: Self::initial_pos(&args),
 			vel: Texture::new2d(RGBA32F, size),
 			acc: Texture::new2d(RGBA32F, size),
-			photon: Texture::new2d(gl::RGBA8UI, size).filter_nearest(),
+			photon: Texture::new2d(RGBA8UI, size).filter_nearest(),
 			vao: Self::vao(p_render),
 			time_steps_per_draw: 6,
 			start: time::Instant::now(),
@@ -119,12 +122,14 @@ impl State {
 	fn initial_pos(args: &Cli) -> Texture {
 		let (w, h) = (args.width, args.height);
 		let mut pix = Vec::<vec4>::with_capacity((w * h) as usize);
+		let mut rng = rand::thread_rng();
+		let mut rand = move || rng.gen::<f32>();
 		for y in 0..h {
 			for x in 0..w {
-				let x = x as f32 / 2.0;
-				/// w as f32;
-				let y = y as f32 / 2.0;
-				/// h as f32;
+				let th = 2.0 * PI * rand();
+				let r = rand() + 0.2;
+				let x = r * th.cos();
+				let y = r * th.sin();
 				pix.push(vec4(x, y, 0.0, 0.0));
 			}
 		}
