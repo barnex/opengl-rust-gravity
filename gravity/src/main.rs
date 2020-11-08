@@ -11,6 +11,8 @@ use gl_safe::*;
 use gl_win::*;
 use glutin::event::ElementState;
 use glutin::event::MouseButton;
+use glutin::event::MouseScrollDelta;
+use glutin::event::VirtualKeyCode;
 use rand::prelude::*;
 use std::cell::Cell;
 use std::f32::consts::PI;
@@ -36,9 +38,13 @@ struct Args {
 	#[structopt(long, default_value = "0.001")]
 	dt: f32,
 
-	/// Radius of mouse disturbance.
-	#[structopt(long, default_value = "50")]
-	mouse_radius: f32,
+	/// Time steps per rendered frame.
+	#[structopt(short, long, default_value = "10")]
+	steps_per_frame: u32,
+
+	/// Render scaling
+	#[structopt(long, default_value = "200.0")]
+	scale: f32,
 }
 
 fn main() {
@@ -67,10 +73,12 @@ fn main() {
 	});
 
 	// infinite event loop
+	//std::thread::sleep(std::time::Duration::from_millis(5000));
 	run_event_loop(ev, win, s);
 }
 
 struct State {
+	scale: f32,
 	p_accel: Program,
 	p_verlet: Program,
 	p_mouse: Program,
@@ -84,6 +92,7 @@ struct State {
 	vao: VertexArray,
 	time_steps_per_draw: u32,
 	start: time::Instant,
+	mouse_down: bool,
 	frames: Cell<i32>,
 }
 
@@ -98,6 +107,7 @@ impl State {
 		]);
 
 		Self {
+			scale: args.scale,
 			p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
 			p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
@@ -109,9 +119,10 @@ impl State {
 			acc: Texture::new2d(RG32F, size),
 			density: Texture::new2d(RGBA8UI, size).filter_nearest(),
 			vao: Self::vao(p_render),
-			time_steps_per_draw: 6,
+			time_steps_per_draw: args.steps_per_frame,
 			start: time::Instant::now(),
 			frames: Cell::new(0),
+			mouse_down: false,
 		}
 	}
 
@@ -131,12 +142,15 @@ impl State {
 
 		for y in 0..h {
 			for x in 0..w {
-				let th = 2.0 * PI * urand();
-				let r = urand() + 0.2;
+				let mut th = 0.5 * PI * irand();
+				//if irand() > 0.0 {
+				//th = PI - th;
+				//}
+				let r = 0.5 * urand() + 1.3;
 				let x = r * th.cos();
 				let y = r * th.sin();
 				pos.push(vec2(x, y));
-				vel.push(vec2(y + 0.4 * irand(), -x - 0.4 * irand())); // TODO
+				vel.push(vec2(y / r + 0.01 * irand(), -x / r - 0.01 * irand())); // TODO
 			}
 		}
 		(pos, vel)
@@ -146,7 +160,6 @@ impl State {
 		for _ in 0..n {
 			self.update_acc();
 			self.update_pos_vel();
-			//	self.apply_mouse();
 		}
 		self.update_density();
 	}
@@ -174,6 +187,7 @@ impl State {
 		self.density.bind_image_unit(0, READ_WRITE);
 		self.exec(self.p_decay);
 
+		self.p_density.set1f("scale", self.scale);
 		self.pos.bind_image_unit(0, READ_WRITE); // TODO
 		self.density.bind_image_unit(1, READ_WRITE);
 		self.exec(self.p_density);
@@ -196,23 +210,24 @@ impl State {
 	}
 
 	fn on_cursor_moved(&self, position: (f64, f64)) {
-		let (w, h) = (self.pos.size().0, self.pos.size().1);
-		let (x, y) = ((position.0) as i32, (position.1) as i32);
-		if x >= 0 && x < (w as i32) && y >= 0 && y < (h as i32) {
-			self.p_mouse.set2i("mouse_pos", x, y);
+		if self.mouse_down {
+			let (w, h) = (self.pos.size().0 as i32, self.pos.size().1 as i32);
+			let (x, y) = ((position.0) as i32, (position.1) as i32);
+			if x >= 0 && x < (w as i32) && y >= 0 && y < (h as i32) {
+				let x = (x - w / 2) as f32;
+				let y = (y - h / 2) as f32;
+				let x = x / self.scale;
+				let y = y / self.scale;
+				self.p_accel.set2f("sun_pos", x, y);
+			}
 		}
 	}
 
-	fn on_mouse_input(&self, button: MouseButton, state: ElementState) {
-		let sign = match button {
-			glutin::event::MouseButton::Right => -1.0,
-			_ => 1.0,
+	fn on_mouse_input(&mut self, button: MouseButton, state: ElementState) {
+		self.mouse_down = match state {
+			ElementState::Pressed => true,
+			ElementState::Released => false,
 		};
-		let pow = match state {
-			ElementState::Pressed => MAX_POW,
-			ElementState::Released => MIN_POW,
-		};
-		self.p_mouse.set1f("mouse_pow", sign * pow);
 	}
 
 	fn on_redraw_requested(&mut self, win: &Window) {
@@ -220,9 +235,17 @@ impl State {
 		win.swap_buffers().unwrap();
 		self.steps(self.time_steps_per_draw);
 		self.frames.set(self.frames.get() + 1);
-		let secs = self.start.elapsed().as_secs_f32();
-		let fps = self.frames.get() as f32 / secs;
-		dbg!(fps);
+		//let secs = self.start.elapsed().as_secs_f32();
+		//let fps = self.frames.get() as f32 / secs;
+		//dbg!(fps);
+	}
+
+	fn zoom(&mut self, scale: f32) {
+		self.scale = self.scale * scale;
+		self.density.bind_image_unit(0, READ_WRITE);
+		for i in 0..8 {
+			self.exec(self.p_decay);
+		}
 	}
 
 	fn on_user_event(&self, win: &Window) {
@@ -235,6 +258,32 @@ impl State {
 
 	fn on_cursor_left(&self) {
 		self.p_mouse.set1f("mouse_pow", 0.0);
+	}
+
+	fn on_mouse_wheel(&mut self, delta: MouseScrollDelta) {
+		let mut zoom = |dy| {
+			if dy > 0.0 {
+				self.zoom(2.0)
+			}
+			if dy < 0.0 {
+				self.zoom(0.5)
+			}
+		};
+		match delta {
+			MouseScrollDelta::LineDelta(_x, y) => zoom(y),
+			MouseScrollDelta::PixelDelta(phys) => zoom(phys.y as f32),
+			_ => (),
+		}
+	}
+
+	fn on_key(&mut self, k: VirtualKeyCode) {
+		println!("key {:?}", k);
+		//use VirtualKeyCode::*;
+		match k {
+			VirtualKeyCode::Equals | VirtualKeyCode::Plus => self.zoom(2.0),
+			VirtualKeyCode::Minus | VirtualKeyCode::Underline => self.zoom(0.5),
+			_ => (),
+		}
 	}
 
 	fn compute_prog(src: &str) -> Program {
@@ -282,8 +331,14 @@ fn run_event_loop(ev: EventLoop, win: Arc<Window>, mut s: State) {
 			Event::WindowEvent { event, .. } => match event {
 				WindowEvent::CursorMoved { position, .. } => s.on_cursor_moved((position.x, position.y)),
 				WindowEvent::MouseInput { state, button, .. } => s.on_mouse_input(button, state),
+				WindowEvent::MouseWheel { delta, .. } => s.on_mouse_wheel(delta),
 				WindowEvent::CursorEntered { .. } => s.on_cursor_entered(),
 				WindowEvent::CursorLeft { .. } => s.on_cursor_left(),
+				WindowEvent::KeyboardInput { input, .. } => {
+					if let Some(k) = input.virtual_keycode {
+						s.on_key(k)
+					}
+				}
 				WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
 				_ => (),
 			},

@@ -166,6 +166,12 @@ impl Program {
 		self
 	}
 
+	pub fn set2f(self, attrib: &str, v0: f32, v1: f32) -> Self {
+		let loc = self.uniform_location(attrib);
+		self.uniform2f(loc, v0, v1);
+		self
+	}
+
 	pub fn set1i(self, attrib: &str, v: i32) -> Self {
 		let loc = self.uniform_location(attrib);
 		self.uniform1i(loc, v);

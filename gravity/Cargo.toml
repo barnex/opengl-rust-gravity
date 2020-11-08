@@ -12,7 +12,7 @@ gl_win = { path = "../gl_win" }
 gl_safe = { path = "../gl_safe" }
 gl_img = { path = "../gl_img" }
 rand = "0.7"
-glutin = "0.24"
+glutin = "0.25"
 image = "0.23"
 structopt = "0.3"
 gl = "0.14.0"

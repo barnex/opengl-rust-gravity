@@ -13,7 +13,7 @@ void main() {
 	uvec3 rgb = texture(photon, start).rgb;
 	uint num_particles = rgb.r | rgb.g << 8 | rgb.b << 16;
 	float density = float(num_particles);
-	float gamma = sqrt(density) * 0.15;
+	float gamma = sqrt(density) * 0.35;
 	vec3 color = vec3(1.0, 0.5, 0.2);
 	output_color = vec4(gamma * color, 1.0);
 }
