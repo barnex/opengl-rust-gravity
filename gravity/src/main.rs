@@ -62,9 +62,6 @@ fn main() {
 	//.set1f("damping", args.damping);
 	s.p_verlet.set1f("dt", args.dt);
 
-	//s.p_mouse //
-	//.set1f("mouse_rad", args.mouse_radius);
-
 	// continuously pump redraws
 	let proxy = ev.create_proxy();
 	std::thread::spawn(move || loop {
@@ -81,7 +78,6 @@ struct State {
 	scale: f32,
 	p_accel: Program,
 	p_verlet: Program,
-	p_mouse: Program,
 	p_render: Program,
 	p_density: Program,
 	p_decay: Program,
@@ -110,7 +106,6 @@ impl State {
 			scale: args.scale,
 			p_accel: Self::compute_prog(include_str!("accel.glsl")),
 			p_verlet: Self::compute_prog(include_str!("verlet.glsl")),
-			p_mouse: Self::compute_prog(include_str!("apply_mouse.glsl")),
 			p_decay: Self::compute_prog(include_str!("decay.glsl")),
 			p_density: Self::compute_prog(include_str!("density.glsl")),
 			p_render,
@@ -178,11 +173,6 @@ impl State {
 		self.exec(self.p_verlet)
 	}
 
-	fn apply_mouse(&self) {
-		self.pos.bind_image_unit(0, READ_WRITE);
-		self.exec(self.p_mouse)
-	}
-
 	fn update_density(&self) {
 		self.density.bind_image_unit(0, READ_WRITE);
 		self.exec(self.p_decay);
@@ -243,30 +233,23 @@ impl State {
 	fn zoom(&mut self, scale: f32) {
 		self.scale = self.scale * scale;
 		self.density.bind_image_unit(0, READ_WRITE);
-		for i in 0..8 {
-			self.exec(self.p_decay);
-		}
 	}
 
 	fn on_user_event(&self, win: &Window) {
 		win.window().request_redraw()
 	}
 
-	fn on_cursor_entered(&self) {
-		self.p_mouse.set1f("mouse_pow", MIN_POW);
-	}
+	fn on_cursor_entered(&self) {}
 
-	fn on_cursor_left(&self) {
-		self.p_mouse.set1f("mouse_pow", 0.0);
-	}
+	fn on_cursor_left(&self) {}
 
 	fn on_mouse_wheel(&mut self, delta: MouseScrollDelta) {
 		let mut zoom = |dy| {
 			if dy > 0.0 {
-				self.zoom(2.0)
+				self.zoom(1.05)
 			}
 			if dy < 0.0 {
-				self.zoom(0.5)
+				self.zoom(0.95)
 			}
 		};
 		match delta {

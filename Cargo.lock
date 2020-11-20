@@ -582,6 +582,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "grav2"
+version = "0.1.0"
+dependencies = [
+ "gl",
+ "gl_img",
+ "gl_obj",
+ "gl_safe",
+ "gl_win",
+ "glutin",
+ "image",
+ "rand",
+ "structopt",
+]
+
+[[package]]
 name = "gravity"
 version = "0.1.0"
 dependencies = [
