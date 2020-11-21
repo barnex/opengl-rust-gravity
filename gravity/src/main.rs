@@ -20,9 +20,6 @@ use std::sync::Arc;
 use std::time;
 use structopt::StructOpt;
 
-const MIN_POW: f32 = 0.05;
-const MAX_POW: f32 = 0.2;
-
 /// OpenGL water simulation.
 #[derive(StructOpt)]
 struct Args {
@@ -48,6 +45,7 @@ struct Args {
 }
 
 fn main() {
+	//hello();
 	let args = Args::from_args();
 
 	// window
@@ -87,7 +85,6 @@ struct State {
 	density: Texture,
 	vao: VertexArray,
 	time_steps_per_draw: u32,
-	start: time::Instant,
 	mouse_down: bool,
 	frames: Cell<i32>,
 }
@@ -115,7 +112,6 @@ impl State {
 			density: Texture::new2d(RGBA8UI, size).filter_nearest(),
 			vao: Self::vao(p_render),
 			time_steps_per_draw: args.steps_per_frame,
-			start: time::Instant::now(),
 			frames: Cell::new(0),
 			mouse_down: false,
 		}
@@ -135,12 +131,9 @@ impl State {
 		let mut urand = move || rng.gen::<f32>();
 		let mut irand = move || rng.gen::<f32>() - 0.5;
 
-		for y in 0..h {
-			for x in 0..w {
-				let mut th = 0.5 * PI * irand();
-				//if irand() > 0.0 {
-				//th = PI - th;
-				//}
+		for _y in 0..h {
+			for _x in 0..w {
+				let th = 0.5 * PI * irand();
 				let r = 0.5 * urand() + 1.3;
 				let x = r * th.cos();
 				let y = r * th.sin();
@@ -213,7 +206,7 @@ impl State {
 		}
 	}
 
-	fn on_mouse_input(&mut self, button: MouseButton, state: ElementState) {
+	fn on_mouse_input(&mut self, _button: MouseButton, state: ElementState) {
 		self.mouse_down = match state {
 			ElementState::Pressed => true,
 			ElementState::Released => false,
@@ -255,7 +248,6 @@ impl State {
 		match delta {
 			MouseScrollDelta::LineDelta(_x, y) => zoom(y),
 			MouseScrollDelta::PixelDelta(phys) => zoom(phys.y as f32),
-			_ => (),
 		}
 	}
 
