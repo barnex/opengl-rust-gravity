@@ -1,4 +1,12 @@
-extern crate gl_img;
+use grav3::prelude::*;
+
+#[allow(non_camel_case_types)]
+type vec = dvec2;
+
+fn vec(x: f64, y: f64) -> vec {
+	vec { x, y }
+}
+
 extern crate gl_safe;
 extern crate gl_win;
 extern crate image;
@@ -45,6 +53,7 @@ struct Args {
 }
 
 fn main() {
+	hello();
 	let args = Args::from_args();
 
 	// window
@@ -289,3 +298,31 @@ fn run_event_loop(ev: EventLoop, win: Arc<Window>, mut s: State) {
 		}
 	});
 }
+
+fn bla() {
+	let a = vec(1.0, 2.0);
+	let b = vec(3.0, 4.0);
+	println!("{} + {} = {}", a, b, a + b);
+	println!("{} . {} = {}", a, b, a.dot(b));
+	println!("{}.len  = {}", a, a.len());
+
+	let p = Particle {
+		pos: vec(1.0, 2.0),
+		vel: vec(3.0, 5.0),
+		mass: 1.0,
+	};
+	println!("{:?}", &p);
+}
+
+//fn force_n2(particles: &[Particle], dst: &mut [vec]) {
+//	for (i, p) in particles.iter().enumerate() {
+//		for j in (i + 1)..dst.len() {
+//			q = particles[j];
+//
+//			let delta = p.pos - q.pos;
+//
+//			dst[i] += a;
+//			dst[j] -= a;
+//		}
+//	}
+//}

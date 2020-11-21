@@ -1,11 +1,12 @@
 [workspace]
 
 members = [
-    "gravity",
-    "grav2",
     "gl_img",
     "gl_obj",
     "gl_safe",
     "gl_vec",
     "gl_win",
+    "grav2_gl",
+    "grav3_gl",
+    "grav3_lib",
 ]

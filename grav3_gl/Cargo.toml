@@ -1,5 +1,5 @@
 [package]
-name = "grav2"
+name = "grav3_gl"
 version = "0.1.0"
 authors = ["Arne Vansteenkiste <barnex@gmail.com>"]
 edition = "2018"
@@ -10,7 +10,6 @@ edition = "2018"
 gl_obj = { path = "../gl_obj" }
 gl_win = { path = "../gl_win" }
 gl_safe = { path = "../gl_safe" }
-gl_img = { path = "../gl_img" }
 rand = "0.7"
 glutin = "0.25"
 image = "0.23"
